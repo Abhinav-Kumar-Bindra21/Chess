@@ -1,16 +1,16 @@
 import { Chess } from "chess.js";
 import { useState } from "react";
 import { Chessboard } from "react-chessboard";
+import MoveHistroy from "./components/MoveHistroy";
 
 const App = () => {
   const [game, setGame] = useState(new Chess());
 
   const handleMove = ({ sourceSquare, targetSquare }) => {
-    console.log("FEN:", game.fen());
-    console.log("Turn:", game.turn());
-    console.log("Legal moves:", game.moves());
+    const gameCopy = new Chess();
 
-    const gameCopy = new Chess(game.fen());
+    // Copy previous game including history
+    gameCopy.loadPgn(game.pgn());
 
     try {
       gameCopy.move({
@@ -22,6 +22,7 @@ const App = () => {
       setGame(gameCopy);
 
       console.log("NEW FEN:", gameCopy.fen());
+      console.log("HISTORY:", gameCopy.history());
 
       return true;
     } catch (error) {
@@ -43,6 +44,10 @@ const App = () => {
             }}
           />
         </div>
+
+        {/* MOVE HISTORY */}
+
+        <MoveHistroy moveHistory={game.history()} />
       </div>
     </div>
   );
