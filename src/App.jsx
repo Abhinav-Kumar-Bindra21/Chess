@@ -2,9 +2,11 @@ import { Chess } from "chess.js";
 import { useState } from "react";
 import { Chessboard } from "react-chessboard";
 import MoveHistroy from "./components/MoveHistroy";
+import GameControls from "./components/GameControls";
 
 const App = () => {
   const [game, setGame] = useState(new Chess());
+  const [redoStack, setRedoStack] = useState([]);
 
   const handleMove = ({ sourceSquare, targetSquare }) => {
     const gameCopy = new Chess();
@@ -21,7 +23,8 @@ const App = () => {
 
       setGame(gameCopy);
 
-      console.log("NEW FEN:", gameCopy.fen());
+      console.log("PGN:", gameCopy.pgn());
+      console.log("FEN:", gameCopy.fen());
       console.log("HISTORY:", gameCopy.history());
 
       return true;
@@ -29,6 +32,65 @@ const App = () => {
       console.log("INVALID MOVE:", error);
       return false;
     }
+  };
+
+  // Undo move function
+  const undoMove = () => {
+    if (game.history().length === 0) {
+      return;
+    }
+
+    const gameCopy = new Chess();
+
+    gameCopy.loadPgn(game.pgn());
+
+    const undoneMove = gameCopy.undo();
+
+    if (!undoneMove) {
+      return;
+    }
+
+    setGame(gameCopy);
+
+    setRedoStack((prev) => [
+      ...prev,
+      {
+        from: undoneMove.from,
+        to: undoneMove.to,
+        promotion: undoneMove.promotion,
+      },
+    ]);
+  };
+
+  // Redo move function
+  const redoMove = () => {
+    if (redoStack.length === 0) {
+      return;
+    }
+
+    const newStack = [...redoStack];
+
+    const moveToRedo = newStack.pop();
+
+    if (!moveToRedo) {
+      return;
+    }
+
+    const gameCopy = new Chess();
+
+    gameCopy.loadPgn(game.pgn());
+
+    gameCopy.move(moveToRedo);
+
+    setGame(gameCopy);
+
+    setRedoStack(newStack);
+  };
+
+  // Reset game function
+  const resetGame = () => {
+    setGame(new Chess());
+    setRedoStack([]);
   };
 
   return (
@@ -43,6 +105,9 @@ const App = () => {
               onPieceDrop: handleMove,
             }}
           />
+
+          {/* Game controls */}
+          <GameControls onUndo={undoMove} onRedo={redoMove} onReset={resetGame} />
         </div>
 
         {/* MOVE HISTORY */}

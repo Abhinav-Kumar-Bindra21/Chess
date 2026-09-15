@@ -1,9 +1,15 @@
-const GameControls = () => {
+const GameControls = ({ onUndo, onRedo, onReset }) => {
   return (
-    <div>
-      <button>Undo</button>
-      <button>Redo</button>
-      <button>Reset</button>
+    <div className="flex gap-3">
+      <button onClick={onUndo} className="px-4 bg-blue-500 text-white rounded">
+        Undo
+      </button>
+      <button onClick={onRedo} className="px-4 bg-blue-500 text-white rounded">
+        Redo
+      </button>
+      <button onClick={onReset} className="px-4 bg-blue-500 text-white rounded">
+        Reset
+      </button>
     </div>
   );
 };
