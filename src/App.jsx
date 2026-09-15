@@ -7,6 +7,7 @@ import GameControls from "./components/GameControls";
 const App = () => {
   const [game, setGame] = useState(new Chess());
   const [redoStack, setRedoStack] = useState([]);
+  const [currentMove, setCurrentMove] = useState(-1);
 
   const handleMove = ({ sourceSquare, targetSquare }) => {
     const gameCopy = new Chess();
@@ -23,6 +24,9 @@ const App = () => {
 
       setGame(gameCopy);
 
+      // Move to the latest position
+      setCurrentMove(gameCopy.history().length - 1);
+
       console.log("PGN:", gameCopy.pgn());
       console.log("FEN:", gameCopy.fen());
       console.log("HISTORY:", gameCopy.history());
@@ -32,6 +36,45 @@ const App = () => {
       console.log("INVALID MOVE:", error);
       return false;
     }
+  };
+
+  // get move from random postion
+
+  const getPositionAtMove = (moveIndex) => {
+    const tempGame = new Chess();
+
+    if (moveIndex === -1) {
+      return tempGame;
+    }
+
+    const moves = game.history({ verbose: true });
+
+    for (let i = 0; i <= moveIndex; i++) {
+      tempGame.move(moves[i]);
+    }
+
+    return tempGame;
+  };
+
+  // display Game
+  const displayGame = getPositionAtMove(currentMove);
+
+  const goToStart = () => {
+    setCurrentMove(-1);
+  };
+
+  // previous move
+
+  const previousMove = () => {
+    setCurrentMove((prev) => Math.max(-1, prev - 1));
+  };
+
+  // next move
+
+  const nextMove = () => {
+    const totalMoves = game.history().length;
+
+    setCurrentMove((prev) => Math.min(totalMoves - 1, prev + 1));
   };
 
   // Undo move function
@@ -101,13 +144,13 @@ const App = () => {
         <div className="w-[400px]">
           <Chessboard
             options={{
-              position: game.fen(),
+              position: displayGame.fen(),
               onPieceDrop: handleMove,
             }}
           />
 
           {/* Game controls */}
-          <GameControls onUndo={undoMove} onRedo={redoMove} onReset={resetGame} />
+          <GameControls onStart={goToStart} onPrevious={previousMove} onNext={nextMove} />
         </div>
 
         {/* MOVE HISTORY */}

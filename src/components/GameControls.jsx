@@ -1,14 +1,14 @@
-const GameControls = ({ onUndo, onRedo, onReset }) => {
+const GameControls = ({ onStart, onPrevious, onNext }) => {
   return (
     <div className="flex gap-3">
-      <button onClick={onUndo} className="px-4 bg-blue-500 text-white rounded">
-        Undo
+      <button onClick={onStart} className="px-4 bg-blue-500 text-white rounded">
+        Start
       </button>
-      <button onClick={onRedo} className="px-4 bg-blue-500 text-white rounded">
-        Redo
+      <button onClick={onPrevious} className="px-4 bg-blue-500 text-white rounded">
+        ← Previous
       </button>
-      <button onClick={onReset} className="px-4 bg-blue-500 text-white rounded">
-        Reset
+      <button onClick={onNext} className="px-4 bg-blue-500 text-white rounded">
+        Next →
       </button>
     </div>
   );
