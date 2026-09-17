@@ -1,41 +1,44 @@
-import React from "react";
-
-const MoveHistroy = ({ moveHistory }) => {
-  const history = moveHistory;
-
-  const movePairs = [];
-
-  for (let i = 0; i < history.length; i += 2) {
-    movePairs.push({
-      number: i / 2 + 1,
-      white: history[i],
-      black: history[i + 1],
-    });
-  }
-
-  console.log(movePairs);
+const MoveHistroy = ({ moveHistory, onMoveClick, currentMove }) => {
   return (
-    // Respresenting or showing moves in singe line
-
-    // <div className="mt-6">
-    //   <h2 className="text-xl font-bold">Move History</h2>
-
-    //   <div>
-    //     {moveHistory.map((move, index) => (
-    //       <span key={index} className="mr-3">
-    //         {move}
-    //       </span>
-    //     ))}
-    //   </div>
-    // </div>
-
-    // in format chess move order
     <div>
-      {movePairs.map((move) => (
-        <div key={move.number}>
-          {move.number}. {move.white} {move.black}
-        </div>
-      ))}
+      <h2>Move History</h2>
+
+      <div>
+        {moveHistory.map((move, index) => {
+          // Only create a row for White's move
+          if (index % 2 !== 0) {
+            return null;
+          }
+
+          const whiteMove = move;
+          const blackMove = moveHistory[index + 1];
+
+          return (
+            <div key={index} className="flex gap-4">
+              {/* Move number */}
+              <span>{Math.floor(index / 2) + 1}.</span>
+
+              {/* White move */}
+              <button
+                onClick={() => onMoveClick(index)}
+                className={currentMove === index ? "bg-blue-500 text-white" : "bg-gray-200"}
+              >
+                {whiteMove}
+              </button>
+
+              {/* Black move */}
+              {blackMove && (
+                <button
+                  onClick={() => onMoveClick(index + 1)}
+                  className={currentMove === index + 1 ? "bg-blue-500 text-white" : "bg-gray-200"}
+                >
+                  {blackMove}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

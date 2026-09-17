@@ -2,17 +2,14 @@ import { Chess } from "chess.js";
 import { useState } from "react";
 import { Chessboard } from "react-chessboard";
 import MoveHistroy from "./components/MoveHistroy";
-import GameControls from "./components/GameControls";
 
 const App = () => {
   const [game, setGame] = useState(new Chess());
-  const [redoStack, setRedoStack] = useState([]);
   const [currentMove, setCurrentMove] = useState(-1);
 
   const handleMove = ({ sourceSquare, targetSquare }) => {
     const gameCopy = new Chess();
 
-    // Copy previous game including history
     gameCopy.loadPgn(game.pgn());
 
     try {
@@ -24,11 +21,10 @@ const App = () => {
 
       setGame(gameCopy);
 
-      // Move to the latest position
+      // After making a new move, show the latest position
       setCurrentMove(gameCopy.history().length - 1);
 
-      console.log("PGN:", gameCopy.pgn());
-      console.log("FEN:", gameCopy.fen());
+      console.log("NEW FEN:", gameCopy.fen());
       console.log("HISTORY:", gameCopy.history());
 
       return true;
@@ -37,8 +33,6 @@ const App = () => {
       return false;
     }
   };
-
-  // get move from random postion
 
   const getPositionAtMove = (moveIndex) => {
     const tempGame = new Chess();
@@ -56,20 +50,17 @@ const App = () => {
     return tempGame;
   };
 
-  // display Game
-  const displayGame = getPositionAtMove(currentMove);
+  const handleMoveClick = (moveIndex) => {
+    setCurrentMove(moveIndex);
+  };
 
   const goToStart = () => {
     setCurrentMove(-1);
   };
 
-  // previous move
-
   const previousMove = () => {
     setCurrentMove((prev) => Math.max(-1, prev - 1));
   };
-
-  // next move
 
   const nextMove = () => {
     const totalMoves = game.history().length;
@@ -77,70 +68,13 @@ const App = () => {
     setCurrentMove((prev) => Math.min(totalMoves - 1, prev + 1));
   };
 
-  // Undo move function
-  const undoMove = () => {
-    if (game.history().length === 0) {
-      return;
-    }
-
-    const gameCopy = new Chess();
-
-    gameCopy.loadPgn(game.pgn());
-
-    const undoneMove = gameCopy.undo();
-
-    if (!undoneMove) {
-      return;
-    }
-
-    setGame(gameCopy);
-
-    setRedoStack((prev) => [
-      ...prev,
-      {
-        from: undoneMove.from,
-        to: undoneMove.to,
-        promotion: undoneMove.promotion,
-      },
-    ]);
-  };
-
-  // Redo move function
-  const redoMove = () => {
-    if (redoStack.length === 0) {
-      return;
-    }
-
-    const newStack = [...redoStack];
-
-    const moveToRedo = newStack.pop();
-
-    if (!moveToRedo) {
-      return;
-    }
-
-    const gameCopy = new Chess();
-
-    gameCopy.loadPgn(game.pgn());
-
-    gameCopy.move(moveToRedo);
-
-    setGame(gameCopy);
-
-    setRedoStack(newStack);
-  };
-
-  // Reset game function
-  const resetGame = () => {
-    setGame(new Chess());
-    setRedoStack([]);
-  };
+  const displayGame = getPositionAtMove(currentMove);
 
   return (
     <div className="min-h-screen bg-gray-100">
       <h1 className="text-3xl font-bold text-center py-4">Chess Analyzer</h1>
 
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-8">
         <div className="w-[400px]">
           <Chessboard
             options={{
@@ -148,14 +82,17 @@ const App = () => {
               onPieceDrop: handleMove,
             }}
           />
-
-          {/* Game controls */}
-          <GameControls onStart={goToStart} onPrevious={previousMove} onNext={nextMove} />
         </div>
 
-        {/* MOVE HISTORY */}
+        <MoveHistroy moveHistory={game.history()} onMoveClick={handleMoveClick} currentMove={currentMove} />
+      </div>
 
-        <MoveHistroy moveHistory={game.history()} />
+      <div className="flex justify-center gap-2 mt-4">
+        <button onClick={goToStart}>Start</button>
+
+        <button onClick={previousMove}>← Previous</button>
+
+        <button onClick={nextMove}>Next →</button>
       </div>
     </div>
   );
