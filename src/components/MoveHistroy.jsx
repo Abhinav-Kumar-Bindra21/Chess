@@ -14,14 +14,14 @@ const MoveHistroy = ({ moveHistory, onMoveClick, currentMove }) => {
           const blackMove = moveHistory[index + 1];
 
           return (
-            <div key={index} className="flex gap-4">
+            <div key={index} className="flex gap-5">
               {/* Move number */}
               <span>{Math.floor(index / 2) + 1}.</span>
 
               {/* White move */}
               <button
                 onClick={() => onMoveClick(index)}
-                className={currentMove === index ? "bg-blue-500 text-white" : "bg-gray-200"}
+                className={currentMove === index ? "bg-blue-500 text-white px-1" : "px-1"}
               >
                 {whiteMove}
               </button>
@@ -30,7 +30,7 @@ const MoveHistroy = ({ moveHistory, onMoveClick, currentMove }) => {
               {blackMove && (
                 <button
                   onClick={() => onMoveClick(index + 1)}
-                  className={currentMove === index + 1 ? "bg-blue-500 text-white" : "bg-gray-200"}
+                  className={currentMove === index + 1 ? "bg-blue-500 text-white px-1" : "px-1"}
                 >
                   {blackMove}
                 </button>

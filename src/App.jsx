@@ -2,15 +2,14 @@ import { Chess } from "chess.js";
 import { useState } from "react";
 import { Chessboard } from "react-chessboard";
 import MoveHistroy from "./components/MoveHistroy";
+import GameControls from "./components/GameControls";
 
 const App = () => {
   const [game, setGame] = useState(new Chess());
   const [currentMove, setCurrentMove] = useState(-1);
 
   const handleMove = ({ sourceSquare, targetSquare }) => {
-    const gameCopy = new Chess();
-
-    gameCopy.loadPgn(game.pgn());
+    const gameCopy = getPositionAtMove(currentMove);
 
     try {
       gameCopy.move({
@@ -71,7 +70,7 @@ const App = () => {
   const displayGame = getPositionAtMove(currentMove);
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center">
       <h1 className="text-3xl font-bold text-center py-4">Chess Analyzer</h1>
 
       <div className="flex justify-center gap-8">
@@ -87,13 +86,7 @@ const App = () => {
         <MoveHistroy moveHistory={game.history()} onMoveClick={handleMoveClick} currentMove={currentMove} />
       </div>
 
-      <div className="flex justify-center gap-2 mt-4">
-        <button onClick={goToStart}>Start</button>
-
-        <button onClick={previousMove}>← Previous</button>
-
-        <button onClick={nextMove}>Next →</button>
-      </div>
+      <GameControls onStart={goToStart} onPrevious={previousMove} onNext={nextMove} />
     </div>
   );
 };
