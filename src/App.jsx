@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Chessboard } from "react-chessboard";
 import MoveHistroy from "./components/MoveHistroy";
 import GameControls from "./components/GameControls";
+import PGNController from "./components/PGNController";
 
 const App = () => {
   const [game, setGame] = useState(new Chess());
@@ -87,6 +88,8 @@ const App = () => {
       </div>
 
       <GameControls onStart={goToStart} onPrevious={previousMove} onNext={nextMove} />
+
+      <PGNController game={game} setGame={setGame} setCurrentMove={setCurrentMove} />
     </div>
   );
 };
