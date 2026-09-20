@@ -22,7 +22,7 @@ const App = () => {
     redoMove,
   } = useChessGame();
 
-  const { isReady, bestMove, evaluation, analyzePosition } = useStockfish();
+  const { isReady, bestMove, evaluation, mate, depth, pv, analyzePosition } = useStockfish();
 
   const handleAnalyze = () => {
     analyzePosition(currentFEN);
@@ -60,6 +60,12 @@ const App = () => {
           Analyze Position
         </button>
 
+        {depth > 0 && (
+          <p>
+            Depth: <strong>{depth}</strong>
+          </p>
+        )}
+
         {evaluation !== null && (
           <p>
             Evaluation:{" "}
@@ -70,9 +76,23 @@ const App = () => {
           </p>
         )}
 
+        {mate !== null && (
+          <p>
+            Evaluation: <strong>{mate > 0 ? `Mate in ${mate}` : `Mated in ${Math.abs(mate)}`}</strong>
+          </p>
+        )}
+
         {bestMove && (
           <p>
             Best Move: <strong>{bestMove}</strong>
+          </p>
+        )}
+
+        {/* Principal Variation */}
+
+        {pv.length > 0 && (
+          <p>
+            Line : <strong>{pv.join(" ")}</strong>
           </p>
         )}
       </div>
