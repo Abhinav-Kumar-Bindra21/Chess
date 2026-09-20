@@ -67,14 +67,21 @@ const useChessGame = () => {
     return getPositionAtMove(currentMove);
   }, [game, currentMove]);
 
+  const currentFEN = displayGame.fen();
+
   return {
     game,
     setGame,
+
     currentMove,
     setCurrentMove,
+
+    currentFEN,
     displayGame,
+
     handleMove,
     handleMoveClick,
+
     goToStart,
     undoMove,
     redoMove,
