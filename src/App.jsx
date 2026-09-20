@@ -22,7 +22,7 @@ const App = () => {
     redoMove,
   } = useChessGame();
 
-  const { isReady, bestMove, analyzePosition } = useStockfish();
+  const { isReady, bestMove, evaluation, analyzePosition } = useStockfish();
 
   const handleAnalyze = () => {
     analyzePosition(currentFEN);
@@ -59,6 +59,16 @@ const App = () => {
         >
           Analyze Position
         </button>
+
+        {evaluation !== null && (
+          <p>
+            Evaluation:{" "}
+            <strong>
+              {evaluation > 0 ? "+" : ""}
+              {evaluation.toFixed(2)}
+            </strong>
+          </p>
+        )}
 
         {bestMove && (
           <p>

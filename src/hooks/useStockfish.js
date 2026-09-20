@@ -5,6 +5,7 @@ const useStockfish = () => {
 
   const [isReady, setIsReady] = useState(false);
   const [bestMove, setBestMove] = useState(null);
+  const [evaluation, setEvaluation] = useState(null);
 
   useEffect(() => {
     console.log("Creating Stockfish worker...");
@@ -16,27 +17,41 @@ const useStockfish = () => {
     worker.onmessage = (event) => {
       const message = event.data;
 
-      console.log("Stockfish message:", message);
+      console.log("Stockfish:", message);
 
-      // Stockfish has finished UCI initialization
+      // Stockfish finished UCI initialization
       if (message === "uciok") {
-        console.log("Stockfish UCI ready");
-
         worker.postMessage("isready");
       }
 
-      // Stockfish is completely ready
+      // Stockfish is ready
       if (message === "readyok") {
-        console.log("Stockfish is READY!");
-
         setIsReady(true);
       }
 
-      // Stockfish has found the best move
+      // Stockfish is sending evaluation
+      if (message.startsWith("info")) {
+        const parts = message.split(" ");
+
+        const scoreIndex = parts.indexOf("score");
+
+        if (scoreIndex !== -1) {
+          const scoreType = parts[scoreIndex + 1];
+          const scoreValue = parts[scoreIndex + 2];
+
+          if (scoreType === "cp") {
+            const centipawns = Number(scoreValue);
+
+            const evaluationValue = centipawns / 100;
+
+            setEvaluation(evaluationValue);
+          }
+        }
+      }
+
+      // Stockfish found the best move
       if (message.startsWith("bestmove")) {
         const move = message.split(" ")[1];
-
-        console.log("BEST MOVE:", move);
 
         setBestMove(move);
       }
@@ -46,7 +61,6 @@ const useStockfish = () => {
       console.error("Stockfish Worker Error:", error);
     };
 
-    // Start UCI mode
     worker.postMessage("uci");
 
     return () => {
@@ -62,19 +76,21 @@ const useStockfish = () => {
 
     console.log("Analyzing FEN:", fen);
 
-    // Clear previous best move
+    // Clear previous results
     setBestMove(null);
+    setEvaluation(null);
 
-    // Tell Stockfish which position to analyze
+    // Give Stockfish the position
     workerRef.current.postMessage(`position fen ${fen}`);
 
-    // Start calculation
+    // Start analysis
     workerRef.current.postMessage("go depth 15");
   };
 
   return {
     isReady,
     bestMove,
+    evaluation,
     analyzePosition,
   };
 };
