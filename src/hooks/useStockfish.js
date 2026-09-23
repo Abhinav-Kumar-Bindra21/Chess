@@ -8,14 +8,49 @@ const useStockfish = () => {
   const currentFenRef = useRef(null);
 
   const [isReady, setIsReady] = useState(false);
+
+  // Human-readable best move
   const [bestMove, setBestMove] = useState(null);
+
+  // Computer-readable best move
+  const [bestMoveUCI, setBestMoveUCI] = useState(null);
+
   const [evaluation, setEvaluation] = useState(null);
+
   const [mate, setMate] = useState(null);
+
   const [depth, setDepth] = useState(0);
+
   const [pv, setPv] = useState([]);
 
   // --------------------------------
-  // Convert UCI moves to SAN moves
+  // Convert UCI move to SAN
+  // --------------------------------
+
+  const convertMoveToSAN = (fen, uciMove) => {
+    const chess = new Chess(fen);
+
+    const from = uciMove.slice(0, 2);
+    const to = uciMove.slice(2, 4);
+    const promotion = uciMove[4];
+
+    try {
+      const move = chess.move({
+        from,
+        to,
+        promotion,
+      });
+
+      return move ? move.san : uciMove;
+    } catch (error) {
+      console.log("Best move conversion error:", error);
+
+      return uciMove;
+    }
+  };
+
+  // --------------------------------
+  // Convert PV UCI → SAN
   // --------------------------------
 
   const convertPVToSAN = (fen, uciMoves) => {
@@ -47,6 +82,10 @@ const useStockfish = () => {
 
     return sanMoves;
   };
+
+  // --------------------------------
+  // Create Stockfish
+  // --------------------------------
 
   useEffect(() => {
     console.log("Creating Stockfish worker...");
@@ -109,6 +148,7 @@ const useStockfish = () => {
             const evaluationValue = centipawns / 100;
 
             setEvaluation(evaluationValue);
+
             setMate(null);
           }
 
@@ -117,6 +157,7 @@ const useStockfish = () => {
             const mateMoves = Number(scoreValue);
 
             setMate(mateMoves);
+
             setEvaluation(null);
           }
         }
@@ -141,9 +182,17 @@ const useStockfish = () => {
       // --------------------------------
 
       if (message.startsWith("bestmove")) {
-        const move = message.split(" ")[1];
+        const uciMove = message.split(" ")[1];
 
-        setBestMove(move);
+        // Store UCI version
+        setBestMoveUCI(uciMove);
+
+        // Convert UCI → SAN
+        if (currentFenRef.current) {
+          const sanMove = convertMoveToSAN(currentFenRef.current, uciMove);
+
+          setBestMove(sanMove);
+        }
       }
     };
 
@@ -160,7 +209,7 @@ const useStockfish = () => {
   }, []);
 
   // --------------------------------
-  // Analyze a position
+  // Analyze Position
   // --------------------------------
 
   const analyzePosition = (fen) => {
@@ -172,17 +221,18 @@ const useStockfish = () => {
 
     console.log("Analyzing FEN:", fen);
 
-    // Remember the FEN being analyzed
+    // Remember FEN
     currentFenRef.current = fen;
 
     // Reset previous analysis
     setBestMove(null);
+    setBestMoveUCI(null);
     setEvaluation(null);
     setMate(null);
     setDepth(0);
     setPv([]);
 
-    // Give Stockfish the position
+    // Give position to Stockfish
     workerRef.current.postMessage(`position fen ${fen}`);
 
     // Start searching
@@ -192,6 +242,7 @@ const useStockfish = () => {
   return {
     isReady,
     bestMove,
+    bestMoveUCI,
     evaluation,
     mate,
     depth,

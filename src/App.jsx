@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { Chessboard } from "react-chessboard";
+
 import MoveHistroy from "./components/MoveHistroy";
 import GameControls from "./components/GameControls";
 import PGNController from "./components/PGNController";
@@ -22,11 +24,34 @@ const App = () => {
     redoMove,
   } = useChessGame();
 
-  const { isReady, bestMove, evaluation, mate, depth, pv, analyzePosition } = useStockfish();
+  const { isReady, bestMove, evaluation, mate, depth, pv, bestMoveUCI, analyzePosition } = useStockfish();
+
+  // Best Move Square Highlight
+  // --------------------------------
+
+  const bestMoveSquaretyles = useMemo(() => {
+    if (!bestMove) {
+      return {};
+    }
+
+    const from = bestMove.slice(0, 2);
+    const to = bestMove.slice(2, 4);
+
+    return {
+      [from]: {
+        background: "rgba(255,193,7,0.55)",
+      },
+
+      [to]: {
+        background: "rgba(76,175,80,0.55)",
+      },
+    };
+  }, [bestMoveUCI]);
 
   const handleAnalyze = () => {
     analyzePosition(currentFEN);
   };
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center">
       <h1 className="text-3xl font-bold text-center py-4">Chess Analyzer</h1>
@@ -37,6 +62,9 @@ const App = () => {
             options={{
               position: displayGame.fen(),
               onPieceDrop: handleMove,
+
+              // Highlight Stockfish best move
+              squareStyles: bestMoveSquaretyles,
             }}
           />
         </div>
