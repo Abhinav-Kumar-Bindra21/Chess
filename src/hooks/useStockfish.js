@@ -24,6 +24,26 @@ const useStockfish = () => {
   const [pv, setPv] = useState([]);
 
   // --------------------------------
+  // Clear engine analysis
+  // --------------------------------
+
+  const clearAnalysis = () => {
+    // Stop current Stockfish search
+    if (workerRef.current) {
+      workerRef.current.postMessage("stop");
+    }
+
+    // Clear UI data
+
+    setBestMove(null);
+    setBestMoveUCI(null);
+    setEvaluation(null);
+    setMate(null);
+    setDepth(null);
+    setPv([]);
+  };
+
+  // --------------------------------
   // Convert UCI move to SAN
   // --------------------------------
 
@@ -248,6 +268,7 @@ const useStockfish = () => {
     depth,
     pv,
     analyzePosition,
+    clearAnalysis,
   };
 };
 

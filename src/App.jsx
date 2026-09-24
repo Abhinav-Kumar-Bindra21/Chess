@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Chessboard } from "react-chessboard";
 
 import MoveHistroy from "./components/MoveHistroy";
@@ -8,6 +8,7 @@ import PositionInfo from "./components/PositionInfo";
 
 import useChessGame from "./hooks/useChessGame";
 import useStockfish from "./hooks/useStockfish";
+import EvaluationBar from "./components/EvaluationBar";
 
 const App = () => {
   const {
@@ -24,7 +25,17 @@ const App = () => {
     redoMove,
   } = useChessGame();
 
-  const { isReady, bestMove, evaluation, mate, depth, pv, bestMoveUCI, analyzePosition } = useStockfish();
+  const { isReady, bestMove, evaluation, mate, depth, pv, bestMoveUCI, analyzePosition, clearAnalysis } =
+    useStockfish();
+
+  // --------------------------------
+  // Clear old analysis when position
+  // changes
+  // --------------------------------
+
+  useEffect(() => {
+    clearAnalysis();
+  }, [currentFEN]);
 
   // Best Move Square Highlight
   // --------------------------------
@@ -57,16 +68,22 @@ const App = () => {
       <h1 className="text-3xl font-bold text-center py-4">Chess Analyzer</h1>
 
       <div className="flex justify-center gap-8">
-        <div className="w-[400px]">
-          <Chessboard
-            options={{
-              position: displayGame.fen(),
-              onPieceDrop: handleMove,
+        {/* Chessboard + Evaluation Bar */}
 
-              // Highlight Stockfish best move
-              squareStyles: bestMoveSquaretyles,
-            }}
-          />
+        <div className="flex items-center gap-3">
+          <EvaluationBar evaluation={evaluation} mate={mate} />
+
+          <div className="w-[400px]">
+            <Chessboard
+              options={{
+                position: displayGame.fen(),
+                onPieceDrop: handleMove,
+
+                // Highlight Stockfish best move
+                squareStyles: bestMoveSquaretyles,
+              }}
+            />
+          </div>
         </div>
 
         <MoveHistroy moveHistory={game.history()} onMoveClick={handleMoveClick} currentMove={currentMove} />
