@@ -15,9 +15,19 @@ const useStockfish = () => {
   // Computer-readable best move
   const [bestMoveUCI, setBestMoveUCI] = useState(null);
 
+  // Evaluation from White's perspective
+  // Positive = White advantage
+  // Negative = Black advantage
   const [evaluation, setEvaluation] = useState(null);
 
+  // Mate score
   const [mate, setMate] = useState(null);
+
+  // Used when the position is already checkmate
+  // "white" = White won
+  // "black" = Black won
+  // null = normal position
+  const [mateWinner, setMateWinner] = useState(null);
 
   const [depth, setDepth] = useState(0);
 
@@ -34,12 +44,12 @@ const useStockfish = () => {
     }
 
     // Clear UI data
-
     setBestMove(null);
     setBestMoveUCI(null);
     setEvaluation(null);
     setMate(null);
-    setDepth(null);
+    setMateWinner(null);
+    setDepth(0);
     setPv([]);
   };
 
@@ -161,23 +171,111 @@ const useStockfish = () => {
 
           const scoreValue = parts[scoreIndex + 2];
 
+          // Current FEN
+          const fen = currentFenRef.current;
+
+          if (!fen) {
+            return;
+          }
+
+          // Whose turn?
+          //
+          // "w" = White
+          // "b" = Black
+          const sideToMove = fen.split(" ")[1];
+
+          // --------------------------------
           // Centipawn score
+          // --------------------------------
+
           if (scoreType === "cp") {
             const centipawns = Number(scoreValue);
 
             const evaluationValue = centipawns / 100;
 
-            setEvaluation(evaluationValue);
+            // --------------------------------
+            // Convert Stockfish score
+            // to White's perspective
+            // --------------------------------
+            //
+            // Stockfish score:
+            //
+            // White to move:
+            //   +5.82 = White advantage
+            //
+            // Black to move:
+            //   +5.82 = Black advantage
+            //
+            // Therefore when Black is to move
+            // we reverse the sign.
 
+            const whiteEvaluation = sideToMove === "w" ? evaluationValue : -evaluationValue;
+
+            setEvaluation(whiteEvaluation);
+
+            // Not a mate position
             setMate(null);
+            setMateWinner(null);
           }
 
+          // --------------------------------
           // Checkmate score
+          // --------------------------------
+
           if (scoreType === "mate") {
             const mateMoves = Number(scoreValue);
 
-            setMate(mateMoves);
+            const chess = new Chess(fen);
 
+            // --------------------------------
+            // Already checkmated
+            // --------------------------------
+            //
+            // Stockfish can return:
+            //
+            // mate 0
+            //
+            // This means the side to move
+            // is already checkmated.
+
+            if (mateMoves === 0 && chess.isCheckmate()) {
+              if (sideToMove === "b") {
+                // Black is checkmated
+                // White has won
+                setMateWinner("white");
+              } else {
+                // White is checkmated
+                // Black has won
+                setMateWinner("black");
+              }
+
+              setMate(0);
+              setEvaluation(null);
+
+              return;
+            }
+
+            // --------------------------------
+            // Normal mate score
+            // --------------------------------
+            //
+            // Example:
+            //
+            // White to move:
+            //   mate 3
+            //   => White mates in 3
+            //
+            // Black to move:
+            //   mate 3
+            //   => Black mates in 3
+            //
+            // Convert to White perspective.
+
+            const whiteMate = sideToMove === "w" ? mateMoves : -mateMoves;
+
+            setMate(whiteMate);
+
+            setMateWinner(null);
             setEvaluation(null);
           }
         }
@@ -249,6 +347,7 @@ const useStockfish = () => {
     setBestMoveUCI(null);
     setEvaluation(null);
     setMate(null);
+    setMateWinner(null);
     setDepth(0);
     setPv([]);
 
@@ -259,14 +358,24 @@ const useStockfish = () => {
     workerRef.current.postMessage("go depth 15");
   };
 
+  // --------------------------------
+  // Return everything
+  // --------------------------------
+
   return {
     isReady,
+
     bestMove,
     bestMoveUCI,
+
     evaluation,
+
     mate,
+    mateWinner,
+
     depth,
     pv,
+
     analyzePosition,
     clearAnalysis,
   };
