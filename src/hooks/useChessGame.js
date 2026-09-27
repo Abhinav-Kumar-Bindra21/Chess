@@ -69,6 +69,34 @@ const useChessGame = () => {
 
   const currentFEN = displayGame.fen();
 
+  const mateWinner = useMemo(() => {
+    // NO Checkmate
+    if (!displayGame.isCheckmate()) {
+      return null;
+    }
+
+    // If it is White's Turn
+    // White has been checkmated
+
+    if (displayGame.turn() === "w") {
+      return "black";
+    }
+
+    // If its Black Turn
+    // Black has been checkmated
+    return "white";
+  }, [displayGame]);
+
+  // -------------------------------- // Update browser title // --------------------------------
+
+  useEffect(() => {
+    if (currentMove === -1) {
+      document.title = "Chess Analyzer - Starting Position";
+    } else {
+      document.title = `Chess Analyzer - Move ${currentMove + 1}`;
+    }
+  }, [currentMove]);
+
   return {
     game,
     setGame,
@@ -78,6 +106,8 @@ const useChessGame = () => {
 
     currentFEN,
     displayGame,
+
+    mateWinner,
 
     handleMove,
     handleMoveClick,
