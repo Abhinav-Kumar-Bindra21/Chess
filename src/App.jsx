@@ -15,13 +15,19 @@ const App = () => {
   const {
     game,
     setGame,
+
     currentMove,
     setCurrentMove,
+
     displayGame,
     currentFEN,
+
     mateWinner,
+    gameStatus,
+
     handleMove,
     handleMoveClick,
+
     goToStart,
     undoMove,
     redoMove,
@@ -101,6 +107,14 @@ const App = () => {
         {/* Move History */}
 
         <MoveHistroy moveHistory={game.history()} onMoveClick={handleMoveClick} currentMove={currentMove} />
+      </div>
+
+      {/* Game Status */}
+
+      <div className="mt-4 text-center">
+        <p className="text-sm text-gray-600 mt-1">
+          Winner: <span className="font-semibold">{gameStatus.winner}</span>
+        </p>
       </div>
 
       {/* Position Information */}

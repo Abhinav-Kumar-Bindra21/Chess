@@ -87,6 +87,56 @@ const useChessGame = () => {
     return "white";
   }, [displayGame]);
 
+  // -------------------------------- // Detect complete game status // --------------------------------
+
+  const gameStatus = useMemo(() => {
+    if (displayGame.isCheckmate()) {
+      return {
+        isGameOver: true,
+        status: "checkmate",
+        winner: displayGame.turn === "w" ? "black" : "white",
+      };
+    }
+
+    if (displayGame.isStalemate()) {
+      return {
+        isGameOver: true,
+        status: "stalemate",
+        winner: null,
+      };
+    }
+
+    if (displayGame.isThreefoldRepetition()) {
+      return {
+        isGameOver: true,
+        status: "threefold repetition",
+        winner: null,
+      };
+    }
+
+    if (displayGame.isInsufficientMaterial()) {
+      return {
+        isGameOver: true,
+        status: "insufficient material",
+        winner: null,
+      };
+    }
+
+    if (displayGame.isDraw()) {
+      return {
+        isGameOver: true,
+        status: "draw",
+        winner: null,
+      };
+    }
+
+    return {
+      isGameOver: false,
+      status: "playing",
+      winner: null,
+    };
+  }, [displayGame]);
+
   // -------------------------------- // Update browser title // --------------------------------
 
   useEffect(() => {
@@ -108,6 +158,7 @@ const useChessGame = () => {
     displayGame,
 
     mateWinner,
+    gameStatus,
 
     handleMove,
     handleMoveClick,
