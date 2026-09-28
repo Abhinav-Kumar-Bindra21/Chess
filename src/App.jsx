@@ -10,6 +10,7 @@ import EvaluationBar from "./components/EvaluationBar";
 
 import useChessGame from "./hooks/useChessGame";
 import useStockfish from "./hooks/useStockfish";
+import GameResult from "./components/GameResult";
 
 const App = () => {
   const {
@@ -111,11 +112,7 @@ const App = () => {
 
       {/* Game Status */}
 
-      <div className="mt-4 text-center">
-        <p className="text-sm text-gray-600 mt-1">
-          Winner: <span className="font-semibold">{gameStatus.winner}</span>
-        </p>
-      </div>
+      <GameResult gameStatus={gameStatus} />
 
       {/* Position Information */}
 
