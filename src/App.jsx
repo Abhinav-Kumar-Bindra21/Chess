@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Chessboard } from "react-chessboard";
 
@@ -36,6 +36,14 @@ const App = () => {
 
   const { isReady, bestMove, bestMoveUCI, evaluation, mate, depth, pv, analyzePosition, clearAnalysis } =
     useStockfish();
+
+  const [boardOrientation, setBoardOrientation] = useState("white");
+
+  // Function to flip
+
+  const handleFlipBoard = () => {
+    setBoardOrientation((current) => (current === "white" ? "black" : "white"));
+  };
 
   // --------------------------------
   // Clear old analysis when position
@@ -90,12 +98,19 @@ const App = () => {
         {/* Chessboard + Evaluation Bar */}
 
         <div className="flex items-center gap-3">
-          <EvaluationBar evaluation={evaluation} mate={mate} mateWinner={mateWinner} />
+          <EvaluationBar
+            evaluation={evaluation}
+            mate={mate}
+            mateWinner={mateWinner}
+            boardOrientation={boardOrientation}
+          />
 
           <div className="w-[400px]">
             <Chessboard
               options={{
                 position: displayGame.fen(),
+
+                boardOrientation: boardOrientation,
 
                 onPieceDrop: handleMove,
 
@@ -110,9 +125,18 @@ const App = () => {
         <MoveHistroy moveHistory={game.history()} onMoveClick={handleMoveClick} currentMove={currentMove} />
       </div>
 
-      {/* Game Status */}
+      <div className="flex items-center justify-center gap-4">
+        <button
+          onClick={handleFlipBoard}
+          className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700 transition"
+        >
+          Flip Board
+        </button>
 
-      <GameResult gameStatus={gameStatus} />
+        {/* Game Status */}
+
+        <GameResult gameStatus={gameStatus} />
+      </div>
 
       {/* Position Information */}
 

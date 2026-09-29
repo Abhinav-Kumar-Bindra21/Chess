@@ -1,4 +1,4 @@
-const EvaluationBar = ({ evaluation, mate, mateWinner }) => {
+const EvaluationBar = ({ evaluation, mate, mateWinner, boardOrientation }) => {
   let whitePercentage = 50;
 
   // --------------------------------
@@ -55,6 +55,22 @@ const EvaluationBar = ({ evaluation, mate, mateWinner }) => {
     evaluationText = evaluation > 0 ? `+${evaluation.toFixed(2)}` : evaluation.toFixed(2);
   }
 
+  // --------------------------------
+  // Bar orientation
+  // --------------------------------
+
+  const whitePosition = boardOrientation === "black" ? "top-0" : "bottom-0";
+
+  const blackPosition = boardOrientation === "black" ? "bottom-0" : "top-0";
+
+  // --------------------------------
+  // Label orientation
+  // --------------------------------
+
+  const topLabel = boardOrientation === "black" ? "W" : "B";
+
+  const bottomLabel = boardOrientation === "black" ? "B" : "W";
+
   return (
     <div className="flex flex-col items-center gap-2">
       {/* --------------------------------
@@ -100,16 +116,16 @@ const EvaluationBar = ({ evaluation, mate, mateWinner }) => {
         {/* Black Portion */}
 
         <div
-          className="
+          className={`
             absolute
-            top-0
             left-0
             w-full
             bg-gray-900
             transition-all
             duration-500
             ease-out
-          "
+            ${blackPosition}
+          `}
           style={{
             height: `${100 - whitePercentage}%`,
           }}
@@ -118,16 +134,16 @@ const EvaluationBar = ({ evaluation, mate, mateWinner }) => {
         {/* White Portion */}
 
         <div
-          className="
+          className={`
             absolute
-            bottom-0
             left-0
             w-full
             bg-white
             transition-all
             duration-500
             ease-out
-          "
+            ${whitePosition}
+          `}
           style={{
             height: `${whitePercentage}%`,
           }}
@@ -147,7 +163,7 @@ const EvaluationBar = ({ evaluation, mate, mateWinner }) => {
           "
         />
 
-        {/* 50% Marker */}
+        {/* Center Marker */}
 
         <div
           className="
@@ -179,8 +195,8 @@ const EvaluationBar = ({ evaluation, mate, mateWinner }) => {
           leading-5
         "
       >
-        <span>W</span>
-        <span>B</span>
+        <span>{topLabel}</span>
+        <span>{bottomLabel}</span>
       </div>
     </div>
   );
