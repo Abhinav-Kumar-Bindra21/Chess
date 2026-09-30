@@ -4,30 +4,44 @@ import { useEffect, useRef, useState } from "react";
 const useStockfish = () => {
   const workerRef = useRef(null);
 
-  // FEN of the position currently being analyzed
+  // --------------------------------
+  // Current analysis information
+  // --------------------------------
+
   const currentFenRef = useRef(null);
+
+  const analysisIdRef = useRef(0);
+
+  const analysisResolverRef = useRef(null);
+
+  // --------------------------------
+  // Latest engine values
+  // These refs are used internally
+  // because Stockfish is asynchronous.
+  // --------------------------------
+
+  const evaluationRef = useRef(null);
+
+  const mateRef = useRef(null);
+
+  const depthRef = useRef(0);
+
+  const pvRef = useRef([]);
+
+  // --------------------------------
+  // React state
+  // Used by the UI
+  // --------------------------------
 
   const [isReady, setIsReady] = useState(false);
 
-  // Human-readable best move
   const [bestMove, setBestMove] = useState(null);
 
-  // Computer-readable best move
   const [bestMoveUCI, setBestMoveUCI] = useState(null);
 
-  // Evaluation from White's perspective
-  // Positive = White advantage
-  // Negative = Black advantage
   const [evaluation, setEvaluation] = useState(null);
 
-  // Mate score
   const [mate, setMate] = useState(null);
-
-  // Used when the position is already checkmate
-  // "white" = White won
-  // "black" = Black won
-  // null = normal position
-  const [mateWinner, setMateWinner] = useState(null);
 
   const [depth, setDepth] = useState(0);
 
@@ -43,25 +57,41 @@ const useStockfish = () => {
       workerRef.current.postMessage("stop");
     }
 
-    // Clear UI data
+    // Invalidate current analysis
+    analysisIdRef.current += 1;
+
+    // Remove current FEN
+    currentFenRef.current = null;
+
+    // Remove pending Promise
+    analysisResolverRef.current = null;
+
+    // Reset internal refs
+    evaluationRef.current = null;
+    mateRef.current = null;
+    depthRef.current = 0;
+    pvRef.current = [];
+
+    // Reset UI
     setBestMove(null);
     setBestMoveUCI(null);
     setEvaluation(null);
     setMate(null);
-    setMateWinner(null);
     setDepth(0);
     setPv([]);
   };
 
   // --------------------------------
-  // Convert UCI move to SAN
+  // Convert UCI → SAN
   // --------------------------------
 
   const convertMoveToSAN = (fen, uciMove) => {
     const chess = new Chess(fen);
 
     const from = uciMove.slice(0, 2);
+
     const to = uciMove.slice(2, 4);
+
     const promotion = uciMove[4];
 
     try {
@@ -90,7 +120,9 @@ const useStockfish = () => {
 
     for (const uciMove of uciMoves) {
       const from = uciMove.slice(0, 2);
+
       const to = uciMove.slice(2, 4);
+
       const promotion = uciMove[4];
 
       try {
@@ -114,7 +146,7 @@ const useStockfish = () => {
   };
 
   // --------------------------------
-  // Create Stockfish
+  // Create Stockfish worker
   // --------------------------------
 
   useEffect(() => {
@@ -135,14 +167,27 @@ const useStockfish = () => {
 
       if (message === "uciok") {
         worker.postMessage("isready");
+
+        return;
       }
 
       if (message === "readyok") {
         setIsReady(true);
+
+        return;
       }
 
       // --------------------------------
-      // Engine information
+      // Ignore messages when no
+      // analysis is active
+      // --------------------------------
+
+      if (!currentFenRef.current) {
+        return;
+      }
+
+      // --------------------------------
+      // INFO message
       // --------------------------------
 
       if (message.startsWith("info")) {
@@ -156,6 +201,8 @@ const useStockfish = () => {
 
         if (depthIndex !== -1) {
           const currentDepth = Number(parts[depthIndex + 1]);
+
+          depthRef.current = currentDepth;
 
           setDepth(currentDepth);
         }
@@ -171,19 +218,6 @@ const useStockfish = () => {
 
           const scoreValue = parts[scoreIndex + 2];
 
-          // Current FEN
-          const fen = currentFenRef.current;
-
-          if (!fen) {
-            return;
-          }
-
-          // Whose turn?
-          //
-          // "w" = White
-          // "b" = Black
-          const sideToMove = fen.split(" ")[1];
-
           // --------------------------------
           // Centipawn score
           // --------------------------------
@@ -193,89 +227,32 @@ const useStockfish = () => {
 
             const evaluationValue = centipawns / 100;
 
-            // --------------------------------
-            // Convert Stockfish score
-            // to White's perspective
-            // --------------------------------
-            //
-            // Stockfish score:
-            //
-            // White to move:
-            //   +5.82 = White advantage
-            //
-            // Black to move:
-            //   +5.82 = Black advantage
-            //
-            // Therefore when Black is to move
-            // we reverse the sign.
+            // Store immediately
+            evaluationRef.current = evaluationValue;
 
-            const whiteEvaluation = sideToMove === "w" ? evaluationValue : -evaluationValue;
+            mateRef.current = null;
 
-            setEvaluation(whiteEvaluation);
+            // Update UI
+            setEvaluation(evaluationValue);
 
-            // Not a mate position
             setMate(null);
-            setMateWinner(null);
           }
 
           // --------------------------------
-          // Checkmate score
+          // Mate score
           // --------------------------------
 
           if (scoreType === "mate") {
             const mateMoves = Number(scoreValue);
 
-            const chess = new Chess(fen);
+            // Store immediately
+            mateRef.current = mateMoves;
 
-            // --------------------------------
-            // Already checkmated
-            // --------------------------------
-            //
-            // Stockfish can return:
-            //
-            // mate 0
-            //
-            // This means the side to move
-            // is already checkmated.
+            evaluationRef.current = null;
 
-            if (mateMoves === 0 && chess.isCheckmate()) {
-              if (sideToMove === "b") {
-                // Black is checkmated
-                // White has won
-                setMateWinner("white");
-              } else {
-                // White is checkmated
-                // Black has won
-                setMateWinner("black");
-              }
+            // Update UI
+            setMate(mateMoves);
 
-              setMate(0);
-              setEvaluation(null);
-
-              return;
-            }
-
-            // --------------------------------
-            // Normal mate score
-            // --------------------------------
-            //
-            // Example:
-            //
-            // White to move:
-            //   mate 3
-            //   => White mates in 3
-            //
-            // Black to move:
-            //   mate 3
-            //   => Black mates in 3
-            //
-            // Convert to White perspective.
-
-            const whiteMate = sideToMove === "w" ? mateMoves : -mateMoves;
-
-            setMate(whiteMate);
-
-            setMateWinner(null);
             setEvaluation(null);
           }
         }
@@ -291,25 +268,73 @@ const useStockfish = () => {
 
           const sanMoves = convertPVToSAN(currentFenRef.current, uciMoves);
 
+          // Store immediately
+          pvRef.current = sanMoves;
+
+          // Update UI
           setPv(sanMoves);
         }
       }
 
       // --------------------------------
-      // Best Move
+      // BESTMOVE
       // --------------------------------
 
       if (message.startsWith("bestmove")) {
         const uciMove = message.split(" ")[1];
 
-        // Store UCI version
+        if (!uciMove) {
+          return;
+        }
+
+        // --------------------------------
+        // Convert UCI → SAN
+        // --------------------------------
+
+        let sanMove = uciMove;
+
+        if (currentFenRef.current) {
+          sanMove = convertMoveToSAN(currentFenRef.current, uciMove);
+        }
+
+        // --------------------------------
+        // Update UI
+        // --------------------------------
+
         setBestMoveUCI(uciMove);
 
-        // Convert UCI → SAN
-        if (currentFenRef.current) {
-          const sanMove = convertMoveToSAN(currentFenRef.current, uciMove);
+        setBestMove(sanMove);
 
-          setBestMove(sanMove);
+        // --------------------------------
+        // Build final result
+        // --------------------------------
+
+        const result = {
+          bestMove: sanMove,
+
+          bestMoveUCI: uciMove,
+
+          evaluation: evaluationRef.current,
+
+          mate: mateRef.current,
+
+          depth: depthRef.current,
+
+          pv: pvRef.current,
+        };
+
+        console.log("FINAL ENGINE RESULT:", result);
+
+        // --------------------------------
+        // Resolve Promise
+        // --------------------------------
+
+        if (analysisResolverRef.current) {
+          const resolve = analysisResolverRef.current;
+
+          analysisResolverRef.current = null;
+
+          resolve(result);
         }
       }
     };
@@ -323,6 +348,8 @@ const useStockfish = () => {
 
     return () => {
       worker.terminate();
+
+      workerRef.current = null;
     };
   }, []);
 
@@ -330,49 +357,91 @@ const useStockfish = () => {
   // Analyze Position
   // --------------------------------
 
-  const analyzePosition = (fen) => {
+  const analyzePosition = (fen, searchDepth = 15) => {
     if (!workerRef.current || !isReady) {
       console.log("Stockfish is not ready yet.");
 
-      return;
+      return Promise.resolve(null);
     }
 
     console.log("Analyzing FEN:", fen);
 
-    // Remember FEN
-    currentFenRef.current = fen;
+    console.log("Analysis depth:", searchDepth);
 
-    // Reset previous analysis
+    // --------------------------------
+    // Create new analysis ID
+    // --------------------------------
+
+    analysisIdRef.current += 1;
+
+    const analysisId = analysisIdRef.current;
+
+    console.log("Analysis ID:", analysisId);
+
+    // --------------------------------
+    // Stop previous search
+    // --------------------------------
+
+    workerRef.current.postMessage("stop");
+
+    // --------------------------------
+    // Reset engine refs
+    // --------------------------------
+
+    evaluationRef.current = null;
+
+    mateRef.current = null;
+
+    depthRef.current = 0;
+
+    pvRef.current = [];
+
+    // --------------------------------
+    // Reset UI
+    // --------------------------------
+
     setBestMove(null);
     setBestMoveUCI(null);
     setEvaluation(null);
     setMate(null);
-    setMateWinner(null);
     setDepth(0);
     setPv([]);
 
-    // Give position to Stockfish
-    workerRef.current.postMessage(`position fen ${fen}`);
+    // --------------------------------
+    // Store current FEN
+    // --------------------------------
 
-    // Start searching
-    workerRef.current.postMessage("go depth 15");
+    currentFenRef.current = fen;
+
+    // --------------------------------
+    // Create Promise
+    // --------------------------------
+
+    return new Promise((resolve) => {
+      analysisResolverRef.current = resolve;
+
+      // --------------------------------
+      // Send position
+      // --------------------------------
+
+      workerRef.current.postMessage(`position fen ${fen}`);
+
+      // --------------------------------
+      // Start search
+      // --------------------------------
+
+      workerRef.current.postMessage(`go depth ${searchDepth}`);
+
+      console.log("Started analysis:", analysisId);
+    });
   };
-
-  // --------------------------------
-  // Return everything
-  // --------------------------------
 
   return {
     isReady,
-
     bestMove,
     bestMoveUCI,
-
     evaluation,
-
     mate,
-    mateWinner,
-
     depth,
     pv,
 

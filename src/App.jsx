@@ -82,8 +82,9 @@ const App = () => {
   // Analyze current position
   // --------------------------------
 
-  const handleAnalyze = () => {
-    analyzePosition(currentFEN);
+  const handleAnalyze = async () => {
+    const result = await analyzePosition(currentFEN);
+    console.log("ANALYSIS RESULT:", result);
   };
 
   return (
