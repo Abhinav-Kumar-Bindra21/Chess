@@ -38,6 +38,217 @@ const reverseEvaluation = (evaluation) => {
   };
 };
 
+// --------------------------------
+// Get evaluation zone
+// --------------------------------
+
+const getEvaluationZone = (evaluation) => {
+  if (evaluation === null) {
+    return null;
+  }
+
+  if (evaluation >= 5) {
+    return "winning";
+  }
+
+  if (evaluation >= 1.5) {
+    return "clearly_better";
+  }
+
+  if (evaluation >= 0.5) {
+    return "slightly_better";
+  }
+
+  if (evaluation > -0.5) {
+    return "equal";
+  }
+
+  if (evaluation > -1.5) {
+    return "slightly_worse";
+  }
+
+  if (evaluation > -5) {
+    return "clearly_worse";
+  }
+
+  return "losing";
+};
+
+// --------------------------------
+// Detect major blunder
+// --------------------------------
+
+const isMajorBlunder = ({ evaluationBefore, evaluationAfter, centipawnLoss, mateBefore, mateAfter }) => {
+  // --------------------------------
+  // Huge centipawn loss
+  // --------------------------------
+
+  if (centipawnLoss !== null && centipawnLoss >= 300) {
+    return true;
+  }
+
+  // --------------------------------
+  // Winning advantage becomes
+  // clearly losing
+  // --------------------------------
+
+  if (evaluationBefore !== null && evaluationAfter !== null && evaluationBefore >= 0.5 && evaluationAfter <= -1) {
+    return true;
+  }
+
+  // --------------------------------
+  // Clearly winning becomes losing
+  // --------------------------------
+
+  if (evaluationBefore !== null && evaluationAfter !== null && evaluationBefore >= 1.5 && evaluationAfter <= -1.5) {
+    return true;
+  }
+
+  // --------------------------------
+  // Forced mate for the player
+  // becomes forced mate for opponent
+  //
+  // Example:
+  // +M3 → -M2
+  // --------------------------------
+
+  if (mateBefore !== null && mateAfter !== null && mateBefore > 0 && mateAfter < 0) {
+    return true;
+  }
+
+  // --------------------------------
+  // Normal winning position becomes
+  // a forced mate against the player
+  // --------------------------------
+
+  if (evaluationBefore !== null && evaluationBefore > 0 && mateAfter !== null && mateAfter < 0) {
+    return true;
+  }
+
+  return false;
+};
+
+// --------------------------------
+// Classify move
+// --------------------------------
+
+const classifyMove = ({
+  actualMoveUCI,
+  bestMoveUCI,
+  centipawnLoss,
+  mateChanged,
+  evaluationBefore,
+  evaluationAfter,
+  mateBefore,
+  mateAfter,
+}) => {
+  // --------------------------------
+  // Exact Stockfish best move
+  // --------------------------------
+
+  if (actualMoveUCI && bestMoveUCI && actualMoveUCI === bestMoveUCI) {
+    return "best";
+  }
+
+  // --------------------------------
+  // FIRST check for a real blunder
+  // --------------------------------
+
+  const majorBlunder = isMajorBlunder({
+    evaluationBefore,
+    evaluationAfter,
+    centipawnLoss,
+    mateBefore,
+    mateAfter,
+  });
+
+  if (majorBlunder) {
+    return "blunder";
+  }
+
+  // --------------------------------
+  // Mate position
+  // --------------------------------
+
+  if (mateChanged) {
+    return "good";
+  }
+
+  // --------------------------------
+  // No CPL
+  // --------------------------------
+
+  if (centipawnLoss === null) {
+    return "good";
+  }
+
+  // --------------------------------
+  // Already winning and still winning
+  // --------------------------------
+
+  const wasWinning = evaluationBefore !== null && evaluationBefore >= 5;
+
+  const isStillWinning = evaluationAfter !== null && evaluationAfter >= 5;
+
+  if (wasWinning && isStillWinning) {
+    if (centipawnLoss <= 100) {
+      return "good";
+    }
+
+    if (centipawnLoss <= 250) {
+      return "inaccuracy";
+    }
+
+    return "mistake";
+  }
+
+  // --------------------------------
+  // Best
+  // --------------------------------
+
+  if (centipawnLoss <= 10) {
+    return "best";
+  }
+
+  // --------------------------------
+  // Excellent
+  // --------------------------------
+
+  if (centipawnLoss <= 30) {
+    return "excellent";
+  }
+
+  // --------------------------------
+  // Good
+  // --------------------------------
+
+  if (centipawnLoss <= 70) {
+    return "good";
+  }
+
+  // --------------------------------
+  // Inaccuracy
+  // --------------------------------
+
+  if (centipawnLoss <= 150) {
+    return "inaccuracy";
+  }
+
+  // --------------------------------
+  // Mistake
+  // --------------------------------
+
+  if (centipawnLoss <= 300) {
+    return "mistake";
+  }
+
+  // --------------------------------
+  // Blunder
+  // --------------------------------
+
+  return "blunder";
+};
+
 const useGameAnalysis = (analyzePosition) => {
   const [analysisResults, setAnalysisResults] = useState([]);
 
@@ -87,19 +298,19 @@ const useGameAnalysis = (analyzePosition) => {
         console.log(`Analyzing move ${i + 1} / ${gameMoves.length}`);
 
         // --------------------------------
-        // Analyze position BEFORE move
+        // Analyze BEFORE position
         // --------------------------------
 
         const beforeResult = await analyzePosition(gameMove.fenBefore, depth);
 
         // --------------------------------
-        // Analyze position AFTER move
+        // Analyze AFTER position
         // --------------------------------
 
         const afterResult = await analyzePosition(gameMove.fenAfter, depth);
 
         // --------------------------------
-        // Get structured evaluations
+        // Get evaluations
         // --------------------------------
 
         const beforeEvaluation = getEvaluation(beforeResult);
@@ -107,16 +318,13 @@ const useGameAnalysis = (analyzePosition) => {
         const afterEvaluationRaw = getEvaluation(afterResult);
 
         // --------------------------------
-        // Reverse AFTER evaluation
-        //
-        // After the player's move,
-        // the opponent is now to move.
+        // Reverse AFTER perspective
         // --------------------------------
 
         const afterEvaluation = reverseEvaluation(afterEvaluationRaw);
 
         // --------------------------------
-        // Normal CP evaluations
+        // Normal evaluations
         // --------------------------------
 
         const evaluationBefore = beforeEvaluation?.type === "cp" ? beforeEvaluation.value : null;
@@ -140,15 +348,21 @@ const useGameAnalysis = (analyzePosition) => {
         const evaluationTypeAfter = afterEvaluation?.type || null;
 
         // --------------------------------
+        // Evaluation zones
+        // --------------------------------
+
+        const evaluationZoneBefore = getEvaluationZone(evaluationBefore);
+
+        const evaluationZoneAfter = getEvaluationZone(evaluationAfter);
+
+        // --------------------------------
         // Detect mate involvement
         // --------------------------------
 
         const mateChanged = evaluationTypeBefore === "mate" || evaluationTypeAfter === "mate";
 
         // --------------------------------
-        // Calculate CPL only when
-        // BOTH positions are normal
-        // centipawn evaluations
+        // Calculate CPL
         // --------------------------------
 
         let centipawnLoss = null;
@@ -158,68 +372,74 @@ const useGameAnalysis = (analyzePosition) => {
         }
 
         // --------------------------------
-        // Combine complete result
+        // Classify move
         // --------------------------------
 
-        const analyzedMove = {
-          ...gameMove,
-
-          // --------------------------------
-          // Actual player move
-          // --------------------------------
-
-          actualMove: gameMove.move,
-
+        const classification = classifyMove({
           actualMoveUCI: gameMove.moveUCI,
-
-          // --------------------------------
-          // Stockfish best move
-          // --------------------------------
-
-          bestMove: beforeResult?.bestMove || null,
 
           bestMoveUCI: beforeResult?.bestMoveUCI || null,
 
-          // --------------------------------
-          // Normal evaluations
-          // --------------------------------
+          centipawnLoss,
+
+          mateChanged,
 
           evaluationBefore,
 
           evaluationAfter,
 
-          // --------------------------------
-          // Mate evaluations
-          // --------------------------------
+          mateBefore,
 
+          mateAfter,
+        });
+
+        // --------------------------------
+        // Complete result
+        // --------------------------------
+
+        const analyzedMove = {
+          ...gameMove,
+
+          // Actual move
+          actualMove: gameMove.move,
+
+          actualMoveUCI: gameMove.moveUCI,
+
+          // Best move
+          bestMove: beforeResult?.bestMove || null,
+
+          bestMoveUCI: beforeResult?.bestMoveUCI || null,
+
+          // Evaluations
+          evaluationBefore,
+
+          evaluationAfter,
+
+          // Evaluation zones
+          evaluationZoneBefore,
+
+          evaluationZoneAfter,
+
+          // Mate
           mateBefore,
 
           mateAfter,
 
-          // --------------------------------
           // Evaluation types
-          // --------------------------------
-
           evaluationTypeBefore,
 
           evaluationTypeAfter,
 
-          // --------------------------------
-          // Did this move involve mate?
-          // --------------------------------
-
+          // Mate flag
           mateChanged,
 
-          // --------------------------------
-          // Centipawn loss
-          // --------------------------------
-
+          // CPL
           centipawnLoss,
 
-          // --------------------------------
-          // Engine information
-          // --------------------------------
+          // Classification
+          classification,
 
+          // Engine
           engineDepth: beforeResult?.depth || 0,
 
           pv: beforeResult?.pv || [],
