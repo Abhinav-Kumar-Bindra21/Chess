@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 
-const MoveHistroy = ({ moveHistory, onMoveClick, currentMove }) => {
+const MoveHistroy = ({ moveHistory = [], onMoveClick, currentMove }) => {
   const moveEndRef = useRef(null);
 
-  // Automatically scroll to latest move
+  // Automatically scroll to the latest move
   useEffect(() => {
     moveEndRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -16,49 +16,55 @@ const MoveHistroy = ({ moveHistory, onMoveClick, currentMove }) => {
 
       <div className="max-h-[400px] overflow-y-auto">
         <div className="flex flex-col gap-2">
-          {moveHistory.map((move, index) => {
-            // Only create a row for White's move
-            if (index % 2 !== 0) {
-              return null;
-            }
+          {moveHistory.length === 0 ? (
+            <p className="text-gray-500 text-sm">No moves played yet.</p>
+          ) : (
+            moveHistory.map((move, index) => {
+              // Only create a row for White's move
+              if (index % 2 !== 0) {
+                return null;
+              }
 
-            const whiteMove = move;
-            const blackMove = moveHistory[index + 1];
+              const whiteMove = move;
+              const blackMove = moveHistory[index + 1];
 
-            return (
-              <div key={index} className="flex items-center gap-4">
-                {/* Move number */}
-                <span className="w-6">{Math.floor(index / 2) + 1}.</span>
+              return (
+                <div key={index} className="flex items-center gap-4">
+                  {/* Move number */}
+                  <span className="w-6">{Math.floor(index / 2) + 1}.</span>
 
-                {/* White move */}
-                <button
-                  onClick={() => onMoveClick(index)}
-                  className={
-                    currentMove === index ? "bg-blue-500 text-white px-3 py-1 rounded" : "bg-gray-200 px-3 py-1 rounded"
-                  }
-                >
-                  {whiteMove}
-                </button>
-
-                {/* Black move */}
-                {blackMove && (
+                  {/* White move */}
                   <button
-                    onClick={() => onMoveClick(index + 1)}
+                    onClick={() => onMoveClick(index)}
                     className={
-                      currentMove === index + 1
+                      currentMove === index
                         ? "bg-blue-500 text-white px-3 py-1 rounded"
                         : "bg-gray-200 px-3 py-1 rounded"
                     }
                   >
-                    {blackMove}
+                    {whiteMove}
                   </button>
-                )}
-              </div>
-            );
-          })}
+
+                  {/* Black move */}
+                  {blackMove && (
+                    <button
+                      onClick={() => onMoveClick(index + 1)}
+                      className={
+                        currentMove === index + 1
+                          ? "bg-blue-500 text-white px-3 py-1 rounded"
+                          : "bg-gray-200 px-3 py-1 rounded"
+                      }
+                    >
+                      {blackMove}
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
 
           {/* Scroll target */}
-          <div ref={moveEndRef}></div>
+          <div ref={moveEndRef} />
         </div>
       </div>
     </div>

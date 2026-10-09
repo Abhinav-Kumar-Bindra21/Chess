@@ -15,23 +15,18 @@ const PIECE_VALUES = {
 };
 
 // --------------------------------
-// Calculate material balance
-// Positive = White has more material
-// Negative = Black has more material
+// Material balance
 // --------------------------------
 
 const getMaterialBalance = (fen) => {
   const chess = new Chess(fen);
-  const board = chess.board();
-
   let balance = 0;
 
-  for (const row of board) {
+  for (const row of chess.board()) {
     for (const piece of row) {
       if (!piece) continue;
 
       const value = PIECE_VALUES[piece.type];
-
       balance += piece.color === "w" ? value : -value;
     }
   }
@@ -39,56 +34,76 @@ const getMaterialBalance = (fen) => {
   return balance;
 };
 
-// --------------------------------
-// Material balance from player's view
-// --------------------------------
-
 const getPlayerMaterialBalance = (fen, player) => {
   const balance = getMaterialBalance(fen);
-
   return player === "white" ? balance : -balance;
 };
 
 // --------------------------------
 // Detect material sacrifice
-// Check all legal opponent replies
 // --------------------------------
 
 const detectMaterialSacrifice = (fenBefore, fenAfter, player) => {
   try {
     const beforeBalance = getPlayerMaterialBalance(fenBefore, player);
-    const opponentPosition = new Chess(fenAfter);
 
-    const legalReplies = opponentPosition.moves({
+    const position = new Chess(fenAfter);
+    const opponentReplies = position.moves({
       verbose: true,
     });
 
-    for (const reply of legalReplies) {
-      const replyPosition = new Chess(fenAfter);
+    for (const reply of opponentReplies) {
+      const afterReply = new Chess(fenAfter);
 
-      replyPosition.move({
+      afterReply.move({
         from: reply.from,
         to: reply.to,
         promotion: reply.promotion,
       });
 
-      const afterReplyBalance = getPlayerMaterialBalance(replyPosition.fen(), player);
+      const balanceAfterReply = getPlayerMaterialBalance(afterReply.fen(), player);
 
-      if (beforeBalance - afterReplyBalance >= 1) {
+      // Opponent must win material.
+      if (balanceAfterReply >= beforeBalance) {
+        continue;
+      }
+
+      // Check whether the sacrificed material
+      // can be recovered immediately.
+      const playerReplies = afterReply.moves({
+        verbose: true,
+      });
+
+      let bestBalance = balanceAfterReply;
+
+      for (const playerReply of playerReplies) {
+        const nextPosition = new Chess(afterReply.fen());
+
+        nextPosition.move({
+          from: playerReply.from,
+          to: playerReply.to,
+          promotion: playerReply.promotion,
+        });
+
+        const balance = getPlayerMaterialBalance(nextPosition.fen(), player);
+
+        bestBalance = Math.max(bestBalance, balance);
+      }
+
+      if (beforeBalance - bestBalance >= 1) {
         return true;
       }
     }
 
     return false;
   } catch (error) {
-    console.log("Material sacrifice detection error:", error);
+    console.error("Material sacrifice detection error:", error);
     return false;
   }
 };
 
 // --------------------------------
-// Convert Stockfish result into
-// a common evaluation format
+// Normalize Stockfish evaluation
 // --------------------------------
 
 const getEvaluation = (engineResult) => {
@@ -114,9 +129,7 @@ const getEvaluation = (engineResult) => {
 // --------------------------------
 
 const reverseEvaluation = (evaluation) => {
-  if (!evaluation) {
-    return null;
-  }
+  if (!evaluation) return null;
 
   return {
     type: evaluation.type,
@@ -129,9 +142,7 @@ const reverseEvaluation = (evaluation) => {
 // --------------------------------
 
 const getEvaluationZone = (evaluation) => {
-  if (evaluation === null) {
-    return null;
-  }
+  if (evaluation === null) return null;
 
   if (evaluation >= 5) return "winning";
   if (evaluation >= 1.5) return "clearly_better";
@@ -153,10 +164,6 @@ const isMajorBlunder = ({ evaluationBefore, evaluationAfter, centipawnLoss, mate
   }
 
   if (evaluationBefore !== null && evaluationAfter !== null && evaluationBefore >= 0.5 && evaluationAfter <= -1) {
-    return true;
-  }
-
-  if (evaluationBefore !== null && evaluationAfter !== null && evaluationBefore >= 1.5 && evaluationAfter <= -1.5) {
     return true;
   }
 
@@ -189,36 +196,21 @@ const classifyMove = ({
   const isBestMove = Boolean(actualMoveUCI) && Boolean(bestMoveUCI) && actualMoveUCI === bestMoveUCI;
 
   // --------------------------------
-  // Brilliant move heuristic
+  // Brilliant move
   // --------------------------------
+  // Require a detected material sacrifice and a
+  // forced mating continuation for the moving player.
+  // A normal best move such as Nc6 will not qualify
+  // just because it matches Stockfish's best move.
 
-  // After reversing the evaluation perspective,
-  // a positive mate score means the player who
-  // made the move has a forced mate.
-  const hasWinningMateAfter = mateAfter !== null && mateAfter > 0;
+  const leadsToForcedMate = mateAfter !== null && mateAfter > 0;
 
-  const leadsToStrongPosition =
-    evaluationAfter !== null &&
-    evaluationAfter >= 5 &&
-    (evaluationBefore === null || evaluationAfter >= evaluationBefore);
-
-  const isAccurateSacrifice = !mateChanged && centipawnLoss !== null && centipawnLoss <= 20;
-
-  // IMPORTANT:
-  // A brilliant sacrifice does not always have to
-  // match Stockfish's reported best move.
-  //
-  // If the move sacrifices material and leads to
-  // a forced mate, it can qualify as brilliant.
-  if (
-    materialSacrifice &&
-    (hasWinningMateAfter || (isBestMove && isAccurateSacrifice) || (isBestMove && leadsToStrongPosition))
-  ) {
+  if (materialSacrifice && leadsToForcedMate) {
     return "brilliant";
   }
 
   // --------------------------------
-  // Exact Stockfish best move
+  // Best move
   // --------------------------------
 
   if (isBestMove) {
@@ -226,7 +218,7 @@ const classifyMove = ({
   }
 
   // --------------------------------
-  // Detect major blunder
+  // Blunder
   // --------------------------------
 
   const majorBlunder = isMajorBlunder({
@@ -242,7 +234,7 @@ const classifyMove = ({
   }
 
   // --------------------------------
-  // Mate position
+  // Mate-related evaluation
   // --------------------------------
 
   if (mateChanged) {
@@ -266,13 +258,8 @@ const classifyMove = ({
   const isStillWinning = evaluationAfter !== null && evaluationAfter >= 5;
 
   if (wasWinning && isStillWinning) {
-    if (centipawnLoss <= 100) {
-      return "good";
-    }
-
-    if (centipawnLoss <= 250) {
-      return "inaccuracy";
-    }
+    if (centipawnLoss <= 100) return "good";
+    if (centipawnLoss <= 250) return "inaccuracy";
 
     return "mistake";
   }
@@ -361,54 +348,50 @@ const useGameAnalysis = (analyzePosition) => {
 
         console.log(`Analyzing move ${i + 1} / ${gameMoves.length}`);
 
-        // Analyze BEFORE position
+        // Analyze position before the move.
         const beforeResult = await analyzePosition(gameMove.fenBefore, depth);
 
-        // Analyze AFTER position
+        // Analyze position after the move.
         const afterResult = await analyzePosition(gameMove.fenAfter, depth);
 
-        // Get evaluations
+        // Get evaluations.
         const beforeEvaluation = getEvaluation(beforeResult);
         const afterEvaluationRaw = getEvaluation(afterResult);
 
-        // Convert AFTER evaluation to the
-        // moving player's perspective
+        // Convert after evaluation to the moving player's
+        // perspective. This assumes engine scores are
+        // reported from the side-to-move perspective.
         const afterEvaluation = reverseEvaluation(afterEvaluationRaw);
 
-        // Normal evaluations
         const evaluationBefore = beforeEvaluation?.type === "cp" ? beforeEvaluation.value : null;
 
         const evaluationAfter = afterEvaluation?.type === "cp" ? afterEvaluation.value : null;
 
-        // Mate evaluations
         const mateBefore = beforeEvaluation?.type === "mate" ? beforeEvaluation.value : null;
 
         const mateAfter = afterEvaluation?.type === "mate" ? afterEvaluation.value : null;
 
-        // Evaluation types
         const evaluationTypeBefore = beforeEvaluation?.type || null;
 
         const evaluationTypeAfter = afterEvaluation?.type || null;
 
-        // Evaluation zones
         const evaluationZoneBefore = getEvaluationZone(evaluationBefore);
 
         const evaluationZoneAfter = getEvaluationZone(evaluationAfter);
 
-        // Mate involvement
         const mateChanged = evaluationTypeBefore === "mate" || evaluationTypeAfter === "mate";
 
-        // Calculate centipawn loss
+        // Calculate centipawn loss.
         let centipawnLoss = null;
 
         if (!mateChanged && evaluationBefore !== null && evaluationAfter !== null) {
           centipawnLoss = Math.max(0, Math.round((evaluationBefore - evaluationAfter) * 100));
         }
 
-        // Detect material sacrifice
+        // Detect material sacrifice.
         const materialSacrifice = detectMaterialSacrifice(gameMove.fenBefore, gameMove.fenAfter, gameMove.player);
 
-        // Classify move
+        // Classify move.
         const classification = classifyMove({
           actualMoveUCI: gameMove.moveUCI,
           bestMoveUCI: beforeResult?.bestMoveUCI || null,
@@ -421,7 +404,7 @@ const useGameAnalysis = (analyzePosition) => {
           materialSacrifice,
         });
 
-        // Complete analysis result
+        // Complete analysis result.
         const analyzedMove = {
           ...gameMove,
 
@@ -454,13 +437,11 @@ const useGameAnalysis = (analyzePosition) => {
 
         results.push(analyzedMove);
 
-        // Update progress
         setProgress({
           current: i + 1,
           total: gameMoves.length,
         });
 
-        // Update results while analysis runs
         setAnalysisResults([...results]);
 
         console.log("MOVE ANALYSIS:", analyzedMove);
