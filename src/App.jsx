@@ -12,6 +12,7 @@ import useChessGame from "./hooks/useChessGame";
 import useStockfish from "./hooks/useStockfish";
 import useGameAnalysis from "./hooks/useGameAnalysis";
 import { extractGameMoves } from "./utils/pgnUtils";
+import MoveExplanation from "./components/MoveExplanation";
 
 const CLASSIFICATION_STYLES = {
   brilliant: "bg-cyan-100 text-cyan-800",
@@ -68,6 +69,108 @@ const MOVE_QUALITY_ITEMS = [
   },
 ];
 
+// Lesson 54: fallback scores for moves without centipawn-loss data.
+// These are illustrative weights, not official chess accuracy values.
+const CLASSIFICATION_ACCURACY = {
+  brilliant: 100,
+  best: 100,
+  excellent: 90,
+  good: 80,
+  inaccuracy: 60,
+  mistake: 40,
+  blunder: 10,
+};
+
+const getMoveAccuracy = (result) => {
+  const loss = result.centipawnLoss;
+
+  if (loss !== null && loss !== undefined && Number.isFinite(Number(loss)) && Number(loss) >= 0) {
+    return Math.max(0, Math.min(100, 100 - Number(loss) / 3));
+  }
+
+  return CLASSIFICATION_ACCURACY[result.classification] ?? null;
+};
+
+const calculateAccuracySummary = (results) => {
+  const whiteScores = [];
+  const blackScores = [];
+
+  for (const result of results) {
+    const accuracy = getMoveAccuracy(result);
+
+    if (accuracy === null) {
+      continue;
+    }
+
+    if (result.player === "white") {
+      whiteScores.push(accuracy);
+    } else if (result.player === "black") {
+      blackScores.push(accuracy);
+    }
+  }
+
+  const average = (scores) => {
+    if (scores.length === 0) {
+      return null;
+    }
+
+    const total = scores.reduce((sum, score) => sum + score, 0);
+    return Math.round((total / scores.length) * 10) / 10;
+  };
+
+  const allScores = [...whiteScores, ...blackScores];
+
+  return {
+    whiteAccuracy: average(whiteScores),
+    blackAccuracy: average(blackScores),
+    overallAccuracy: average(allScores),
+    whiteMovesCounted: whiteScores.length,
+    blackMovesCounted: blackScores.length,
+  };
+};
+
+// LESSON 55: Format centipawn loss for the comparison panel.
+const formatCentipawnLoss = (loss) => {
+  if (loss === null || loss === undefined || !Number.isFinite(Number(loss))) {
+    return "Not available";
+  }
+
+  const value = Number(loss);
+
+  if (value <= 0) {
+    return "0 cp";
+  }
+
+  return `${Math.round(value)} cp`;
+};
+
+// LESSON 55: Explain the centipawn loss.
+const getLossDescription = (loss) => {
+  if (loss === null || loss === undefined || !Number.isFinite(Number(loss))) {
+    return "Centipawn loss was not recorded for this move.";
+  }
+
+  const value = Number(loss);
+
+  if (value <= 10) {
+    return "Very little evaluation was lost.";
+  }
+
+  if (value <= 30) {
+    return "A small amount of evaluation was lost.";
+  }
+
+  if (value <= 100) {
+    return "The move gave up a noticeable amount of evaluation.";
+  }
+
+  if (value <= 300) {
+    return "The move significantly worsened the position.";
+  }
+
+  return "The move caused a major evaluation loss.";
+};
+
 function App() {
   const {
     game,
@@ -93,7 +196,6 @@ function App() {
   const [boardOrientation, setBoardOrientation] = useState("white");
   const [selectedAnalysisMove, setSelectedAnalysisMove] = useState(null);
 
-  // Show the selected analyzed position or the current game position.
   const boardPosition = selectedAnalysisMove ? selectedAnalysisMove.fenAfter : displayGame.fen();
 
   // Lesson 53: Count each move classification.
@@ -123,7 +225,19 @@ function App() {
     return Object.values(moveQualitySummary).reduce((total, count) => total + count, 0);
   }, [moveQualitySummary]);
 
-  // Highlight the best move on the live board.
+  // Lesson 54: Calculate estimated accuracy.
+  const accuracySummary = useMemo(() => {
+    return calculateAccuracySummary(analysisResults);
+  }, [analysisResults]);
+
+  // Lesson 55: Get the selected move's centipawn loss.
+  const selectedMoveLoss = selectedAnalysisMove?.centipawnLoss;
+
+  const selectedMoveClassification = selectedAnalysisMove?.classification || "good";
+
+  const selectedMoveStyle = CLASSIFICATION_STYLES[selectedMoveClassification] || CLASSIFICATION_STYLES.good;
+
+  // Draw the Stockfish best-move arrow on the live board.
   const bestMoveArrows = useMemo(() => {
     if (!bestMoveUCI || selectedAnalysisMove) {
       return [];
@@ -168,7 +282,6 @@ function App() {
     clearAnalysis();
   }, [currentFEN, clearAnalysis]);
 
-  // Analyze the currently displayed position.
   const handleAnalyze = () => {
     if (!isReady) {
       return;
@@ -177,7 +290,6 @@ function App() {
     analyzePosition(boardPosition, 15);
   };
 
-  // Analyze all moves from the current game's PGN.
   const handleAnalyzeGame = () => {
     const pgn = game.pgn();
 
@@ -198,7 +310,6 @@ function App() {
     analyzeGame(gameMoves, 15);
   };
 
-  // Inspect an analyzed move without changing the actual game history.
   const handleAnalysisMoveClick = (result) => {
     setSelectedAnalysisMove(result);
   };
@@ -213,10 +324,31 @@ function App() {
 
   const progressPercentage = typeof progress === "number" ? Math.min(100, Math.max(0, progress)) : 0;
 
+  // Lesson 54: Reusable accuracy card.
+  const renderAccuracyCard = (label, accuracy, description, color) => (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+
+      <p className={`mt-2 text-3xl font-bold ${color}`}>{accuracy === null ? "—" : `${accuracy.toFixed(1)}%`}</p>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${
+            color.includes("blue") ? "bg-blue-600" : color.includes("green") ? "bg-green-600" : "bg-violet-600"
+          }`}
+          style={{
+            width: `${accuracy === null ? 0 : accuracy}%`,
+          }}
+        />
+      </div>
+
+      <p className="mt-2 text-xs text-slate-500">{description}</p>
+    </div>
+  );
+
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-6 text-slate-900 sm:px-6">
       <div className="mx-auto max-w-7xl">
-        {/* Page heading */}
         <header className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Chess Analyzer</h1>
 
@@ -224,7 +356,7 @@ function App() {
         </header>
 
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-          {/* Left side: Chessboard */}
+          {/* Chessboard */}
           <section className="rounded-xl bg-white p-4 shadow-sm sm:p-5">
             {selectedAnalysisMove && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-blue-50 p-3">
@@ -270,7 +402,6 @@ function App() {
               <GameResult gameStatus={gameStatus} />
             </div>
 
-            {/* Evaluation bar */}
             <div className="mt-5">
               <EvaluationBar
                 evaluation={evaluation}
@@ -280,15 +411,13 @@ function App() {
               />
             </div>
 
-            {/* Position information */}
             <div className="mt-5">
               <PositionInfo currentFEN={boardPosition} />
             </div>
           </section>
 
-          {/* Right side: Analysis */}
+          {/* Engine and game analysis */}
           <div className="space-y-6">
-            {/* Single-position analysis */}
             <section className="rounded-xl bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold">Engine Analysis</h2>
 
@@ -350,13 +479,12 @@ function App() {
               )}
             </section>
 
-            {/* Full-game analysis */}
             <section className="rounded-xl bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold">Full Game Analysis</h2>
 
-                  <p className="mt-1 text-sm text-slate-600">Review the quality of each played move.</p>
+                  <p className="mt-1 text-sm text-slate-600">Review the quality of every played move.</p>
                 </div>
 
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium">
@@ -373,7 +501,7 @@ function App() {
                 {isAnalyzing ? "Analyzing Game..." : "Analyze Complete Game"}
               </button>
 
-              {/* Analysis progress bar */}
+              {/* Progress bar */}
               {isAnalyzing && (
                 <div className="mt-4">
                   <div className="mb-2 flex justify-between text-sm text-slate-600">
@@ -393,6 +521,45 @@ function App() {
                       className="h-full rounded-full bg-blue-600 transition-all duration-300"
                       style={{ width: `${progressPercentage}%` }}
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* Lesson 54: Accuracy dashboard */}
+              {analysisResults.length > 0 && (
+                <div className="mt-6">
+                  <div className="mb-3">
+                    <h3 className="text-lg font-bold">Game Accuracy</h3>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Estimated scores based on move loss or classification; these are not official Chess.com accuracy
+                      scores.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {renderAccuracyCard(
+                      "White Accuracy",
+                      accuracySummary.whiteAccuracy,
+                      `${accuracySummary.whiteMovesCounted} moves included`,
+                      "text-green-700",
+                    )}
+
+                    {renderAccuracyCard(
+                      "Black Accuracy",
+                      accuracySummary.blackAccuracy,
+                      `${accuracySummary.blackMovesCounted} moves included`,
+                      "text-blue-700",
+                    )}
+
+                    <div className="sm:col-span-2">
+                      {renderAccuracyCard(
+                        "Overall Accuracy",
+                        accuracySummary.overallAccuracy,
+                        "Average of the included moves from both players",
+                        "text-violet-700",
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -422,7 +589,88 @@ function App() {
                 </div>
               )}
 
-              {/* Individual analyzed moves */}
+              {/* LESSON 55: Selected move comparison panel */}
+              {selectedAnalysisMove && (
+                <section className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">Move Comparison</h3>
+
+                      <p className="mt-1 text-sm text-slate-600">
+                        Move {selectedAnalysisMove.moveNumber}
+                        {selectedAnalysisMove.player === "black" ? "..." : "."} — {selectedAnalysisMove.player}
+                      </p>
+                    </div>
+
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${selectedMoveStyle}`}>
+                      {selectedMoveClassification}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <p className="text-sm text-slate-500">Played move</p>
+
+                      <p className="mt-2 text-2xl font-bold text-slate-900">
+                        {selectedAnalysisMove.actualMove || selectedAnalysisMove.move || "Not available"}
+                      </p>
+
+                      <p className="mt-1 break-all text-xs text-slate-500">
+                        UCI: {selectedAnalysisMove.actualMoveUCI || selectedAnalysisMove.moveUCI || "Not available"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-green-200 bg-white p-4">
+                      <p className="text-sm text-slate-500">Stockfish best move</p>
+
+                      <p className="mt-2 text-2xl font-bold text-green-700">
+                        {selectedAnalysisMove.bestMove || selectedAnalysisMove.bestMoveUCI || "Not available"}
+                      </p>
+
+                      <p className="mt-1 break-all text-xs text-slate-500">
+                        UCI: {selectedAnalysisMove.bestMoveUCI || "Not available"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg bg-white p-4">
+                      <p className="text-sm text-slate-500">Centipawn loss</p>
+
+                      <p className="mt-1 text-2xl font-bold text-slate-900">{formatCentipawnLoss(selectedMoveLoss)}</p>
+
+                      <p className="mt-1 text-xs text-slate-500">{getLossDescription(selectedMoveLoss)}</p>
+                    </div>
+
+                    <div className="rounded-lg bg-white p-4">
+                      <p className="text-sm text-slate-500">Evaluation after move</p>
+
+                      <p className="mt-1 text-2xl font-bold text-slate-900">
+                        {selectedAnalysisMove.evaluationAfter === null ||
+                        selectedAnalysisMove.evaluationAfter === undefined
+                          ? "Not available"
+                          : `${selectedAnalysisMove.evaluationAfter > 0 ? "+" : ""}${selectedAnalysisMove.evaluationAfter.toFixed(2)}`}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-500">From the analyzed position's stored evaluation.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <MoveExplanation selectedAnalysisMove={selectedAnalysisMove} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={returnToCurrentPosition}
+                    className="mt-4 rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                  >
+                    Return to current position
+                  </button>
+                </section>
+              )}
+
+              {/* Move-by-move analysis table */}
               {analysisResults.length > 0 && (
                 <div className="mt-6">
                   <h3 className="mb-3 text-lg font-bold">Move Details</h3>
@@ -473,9 +721,7 @@ function App() {
                               <td className="px-3 py-3">
                                 {result.evaluationAfter === null || result.evaluationAfter === undefined
                                   ? "—"
-                                  : result.evaluationAfter > 0
-                                    ? `+${result.evaluationAfter.toFixed(2)}`
-                                    : result.evaluationAfter.toFixed(2)}
+                                  : `${result.evaluationAfter > 0 ? "+" : ""}${result.evaluationAfter.toFixed(2)}`}
                               </td>
 
                               <td className="px-3 py-3">
@@ -493,7 +739,7 @@ function App() {
                   </div>
 
                   <p className="mt-2 text-xs text-slate-500">
-                    Select a row to inspect the board position after that move.
+                    Select a row to compare the played move with Stockfish's best move.
                   </p>
                 </div>
               )}
@@ -506,7 +752,7 @@ function App() {
           <section className="rounded-xl bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-xl font-bold">Move History</h2>
 
-            <MoveHistroy moveHistory={game.history()} currentMove={currentMove} onMoveClick={handleMoveClick} />
+            <MoveHistroy game={game} currentMove={currentMove} handleMoveClick={handleMoveClick} />
           </section>
 
           <section className="rounded-xl bg-white p-5 shadow-sm">
