@@ -1,180 +1,306 @@
-const MoveExplanation = ({ selectedAnalysisMove }) => {
-  // Step 1: Handle the case where no move is selected.
-  if (!selectedAnalysisMove) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h3 className="font-bold text-slate-900">Why was this move good or bad?</h3>
+const formatEvaluation = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return "Unavailable";
+  }
 
-        <p className="mt-2 text-sm text-slate-600">Select a move from the analysis table to see its explanation.</p>
-      </div>
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "Unavailable";
+  }
+
+  return `${number > 0 ? "+" : ""}${number.toFixed(2)}`;
+};
+
+const formatMove = (move) => {
+  if (!move) return "Unavailable";
+
+  if (typeof move === "string") {
+    return move;
+  }
+
+  return move.san || move.lan || move.uci || move.uciMove || "Unavailable";
+};
+
+const formatCentipawnLoss = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return "Unavailable";
+  }
+
+  const loss = Number(value);
+
+  if (!Number.isFinite(loss) || loss < 0) {
+    return "Unavailable";
+  }
+
+  return `${Math.round(loss)} cp (${(loss / 100).toFixed(2)} pawns)`;
+};
+
+const getExplanation = (result) => {
+  const classification = String(result.classification || "unclassified").toLowerCase();
+
+  const loss = Number(result.centipawnLoss);
+  const hasLoss =
+    result.centipawnLoss !== null &&
+    result.centipawnLoss !== undefined &&
+    result.centipawnLoss !== "" &&
+    Number.isFinite(loss) &&
+    loss >= 0;
+
+  const bestMove = formatMove(result.bestMove);
+  const playedMove = formatMove(result.actualMove || result.san || result.move);
+
+  const hasAlternative = bestMove !== "Unavailable" && playedMove !== "Unavailable" && bestMove !== playedMove;
+
+  if (classification === "brilliant") {
+    return {
+      title: "A brilliant move!",
+      detail:
+        "Your analyzer classified this move as brilliant. Compare the played move with the engine continuation to understand the idea behind it.",
+      lesson:
+        "Look for the tactical or positional idea that justifies this move. Confirm it using the engine's suggested line.",
+    };
+  }
+
+  if (classification === "blunder") {
+    return {
+      title: "A major mistake",
+      detail: hasAlternative
+        ? `The engine classified ${playedMove} as a blunder and recommends ${bestMove} instead. Review the engine continuation to find the concrete consequence.`
+        : "The engine classified this move as a blunder. Review the position and engine continuation to understand the consequence.",
+      lesson:
+        "Before committing to a move, check your opponent's checks, captures, and threats. Also check whether your own pieces are left undefended.",
+    };
+  }
+
+  if (classification === "mistake") {
+    return {
+      title: "A significant mistake",
+      detail: hasAlternative
+        ? `The engine prefers ${bestMove} over ${playedMove}. Compare the resulting positions to identify what makes the recommended move stronger.`
+        : "The engine found a significant problem with this move. Inspect the recommended continuation to understand why.",
+      lesson:
+        "Compare candidate moves and check king safety, material, piece activity, and your opponent's immediate threats.",
+    };
+  }
+
+  if (classification === "inaccuracy") {
+    return {
+      title: "A less accurate move",
+      detail: hasAlternative
+        ? `${playedMove} was less accurate than ${bestMove} according to the engine. This does not automatically mean you lost material.`
+        : "The engine identified an opportunity to improve this position. Inspect its recommended continuation.",
+      lesson:
+        "Look for a move that improves your pieces, strengthens your king's safety, or prevents an opponent's plan.",
+    };
+  }
+
+  if (classification === "excellent") {
+    return {
+      title: "An excellent move",
+      detail:
+        "Your analyzer classified this move as excellent. Review the best move and engine continuation to understand why it works well.",
+      lesson: "Try to identify the strategic or tactical purpose behind the move, rather than memorizing it.",
+    };
+  }
+
+  if (classification === "good") {
+    return {
+      title: "A good move",
+      detail:
+        "Your analyzer classified this move as good. Compare it with the engine's preferred continuation to see whether there is room for improvement.",
+      lesson: "Keep checking your opponent's threats and look for ways to improve your pieces.",
+    };
+  }
+
+  if (classification === "inaccuracy-free") {
+    return {
+      title: "Position maintained",
+      detail:
+        "The recorded analysis did not identify a significant loss from this move. Review the engine line for possible improvements.",
+      lesson: "Continue evaluating checks, captures, threats, and your pieces' activity.",
+    };
+  }
+
+  if (hasLoss && loss > 100) {
+    return {
+      title: "The move lost evaluation",
+      detail: `The recorded centipawn loss is ${Math.round(loss)} cp. Compare the played move with the engine's best move and inspect the continuation to find the reason.`,
+      lesson:
+        "Find the first point in the engine line where the position changes significantly. Check for missed tactics and immediate threats.",
+    };
+  }
+
+  return {
+    title: "Review this move",
+    detail:
+      "The available analysis does not establish a specific tactical reason. Compare the played move, engine recommendation, and resulting position.",
+    lesson: "Look for checks, captures, threats, king safety, material balance, and improvements in piece activity.",
+  };
+};
+
+const MoveExplanation = ({ result }) => {
+  if (!result) {
+    return (
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-800">Move Explanation</h2>
+
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Analyze a game and select a move from the Move Details table to review it here.
+        </p>
+      </section>
     );
   }
 
-  // Step 2: Get the information from the selected move.
-  const {
-    actualMove,
-    bestMove,
-    classification,
-    centipawnLoss,
-    evaluationBefore,
-    evaluationAfter,
-    mateChanged,
-    materialSacrifice,
-  } = selectedAnalysisMove;
+  const explanation = getExplanation(result);
 
-  // Step 3: Make sure the centipawn loss is a valid number.
-  const hasValidLoss =
-    centipawnLoss !== null &&
-    centipawnLoss !== undefined &&
-    centipawnLoss !== "" &&
-    Number.isFinite(Number(centipawnLoss)) &&
-    Number(centipawnLoss) >= 0;
+  const playedMove = formatMove(result.actualMove || result.san || result.move);
 
-  const loss = hasValidLoss ? Number(centipawnLoss) : null;
+  const bestMove = formatMove(result.bestMove);
 
-  // Step 4: Create an explanation based on the available data.
-  const getExplanation = () => {
-    if (mateChanged) {
-      return {
-        title: "Mate-related position",
-        message:
-          "The engine detected a checkmate-related evaluation before or after this move. Centipawn loss alone cannot explain the mating sequence, so review the engine's suggested move and continuation.",
-      };
-    }
+  const classification = String(result.classification || "unclassified");
 
-    if (loss === null) {
-      return {
-        title: "Evaluation unavailable",
-        message:
-          "The engine did not provide enough evaluation data to calculate centipawn loss. Compare the played move with the suggested move and review the position.",
-      };
-    }
+  const hasBefore =
+    result.evaluationBefore !== null && result.evaluationBefore !== undefined && result.evaluationBefore !== "";
 
-    if (loss <= 10) {
-      return {
-        title: "Very little evaluation lost",
-        message:
-          "Your move kept the position close to the engine's preferred evaluation. Compare it with the suggested move to see whether there was a small improvement.",
-      };
-    }
+  const hasAfter =
+    result.evaluationAfter !== null && result.evaluationAfter !== undefined && result.evaluationAfter !== "";
 
-    if (loss <= 30) {
-      return {
-        title: "Small evaluation loss",
-        message:
-          "Your move was reasonably close to the engine's preferred play, but the suggested move may preserve a little more of the position's value.",
-      };
-    }
+  const before = hasBefore ? Number(result.evaluationBefore) : NaN;
+  const after = hasAfter ? Number(result.evaluationAfter) : NaN;
 
-    if (loss <= 100) {
-      return {
-        title: "Noticeable evaluation loss",
-        message:
-          "The engine preferred another move. Compare the two moves and inspect the continuation to understand what positional or tactical opportunity may have been missed.",
-      };
-    }
+  const validEvaluations = Number.isFinite(before) && Number.isFinite(after);
 
-    if (loss <= 300) {
-      return {
-        title: "Significant evaluation loss",
-        message:
-          "Your move substantially worsened the engine's evaluation. Study the recommended alternative and the resulting position to identify the missed opportunity.",
-      };
-    }
+  // Only calculate the change when both evaluations use
+  // an explicitly identified, consistent perspective.
+  const perspective = String(result.evaluationPerspective || "").toLowerCase();
 
-    return {
-      title: "Major evaluation loss",
-      message:
-        "Your move caused a large evaluation loss according to the analysis. Carefully review the recommended alternative and the engine's continuation. This score alone does not identify the exact tactical mistake.",
-    };
-  };
+  const canCalculateChange = validEvaluations && ["white", "black"].includes(perspective);
 
-  const explanation = getExplanation();
+  const evaluationChange = canCalculateChange ? after - before : null;
 
-  // Step 5: Display the explanation.
+  const pv = Array.isArray(result.pv)
+    ? result.pv
+        .map((move) => (typeof move === "string" ? move : move?.san || move?.uci || ""))
+        .filter(Boolean)
+        .join(" ")
+    : typeof result.pv === "string"
+      ? result.pv
+      : "";
+
+  const centipawnLoss = formatCentipawnLoss(result.centipawnLoss);
+
+  const hasBestMove = bestMove !== "Unavailable" && bestMove !== playedMove;
+
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
-      <h3 className="text-lg font-bold text-slate-900">Why was this move good or bad?</h3>
-
-      <p className="mt-1 text-sm text-slate-600">An explanation based on your engine analysis.</p>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-slate-50 p-3">
-          <p className="text-sm text-slate-500">You played</p>
-
-          <p className="mt-1 text-xl font-bold text-slate-900">
-            {actualMove || selectedAnalysisMove.move || "Unavailable"}
-          </p>
-        </div>
-
-        <div className="rounded-lg bg-green-50 p-3">
-          <p className="text-sm text-slate-500">Best move found</p>
-
-          <p className="mt-1 text-xl font-bold text-green-700">
-            {bestMove || selectedAnalysisMove.bestMoveUCI || "Unavailable"}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3">
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-500">Move classification</p>
+          <p className="text-sm text-slate-500">Move Review</p>
 
-          <p className="mt-1 font-semibold capitalize text-slate-900">{classification || "Not classified"}</p>
+          <h2 className="mt-1 text-xl font-bold text-slate-900">{explanation.title}</h2>
         </div>
 
-        <div>
-          <p className="text-sm text-slate-500">Centipawn loss</p>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium capitalize text-slate-700">
+          {classification}
+        </span>
+      </div>
 
-          <p className="mt-1 text-lg font-bold text-slate-900">
-            {loss === null ? "Unavailable" : `${Math.round(loss)} cp`}
-          </p>
+      {/* Played move and best move */}
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-sm text-slate-500">Move played</p>
+
+          <p className="mt-1 text-xl font-bold text-slate-900">{playedMove}</p>
         </div>
-      </div>
 
-      <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
-        <h4 className="font-semibold text-blue-950">{explanation.title}</h4>
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm text-blue-700">Engine's best move</p>
 
-        <p className="mt-2 text-sm leading-6 text-blue-900">{explanation.message}</p>
-      </div>
+          <p className="mt-1 text-xl font-bold text-blue-900">{bestMove}</p>
 
-      <div className="mt-4">
-        <h4 className="font-semibold text-slate-900">Evaluation before and after</h4>
-
-        <div className="mt-2 grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-sm text-slate-500">Before the move</p>
-
-            <p className="mt-1 font-semibold">
-              {evaluationBefore === null || evaluationBefore === undefined
-                ? "Unavailable"
-                : `${evaluationBefore > 0 ? "+" : ""}${evaluationBefore.toFixed(2)}`}
-            </p>
-          </div>
-
-          <div>
-            <p className="text-sm text-slate-500">After the move</p>
-
-            <p className="mt-1 font-semibold">
-              {evaluationAfter === null || evaluationAfter === undefined
-                ? "Unavailable"
-                : `${evaluationAfter > 0 ? "+" : ""}${evaluationAfter.toFixed(2)}`}
-            </p>
-          </div>
+          {hasBestMove && <p className="mt-1 text-xs text-blue-700">Alternative to the move played</p>}
         </div>
       </div>
 
-      {materialSacrifice && (
-        <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-          The material-sacrifice detector flagged this move. This is a heuristic signal, not proof that the sacrifice is
-          sound.
+      {/* Explanation */}
+      <div className="mt-5">
+        <h3 className="font-semibold text-slate-900">What happened?</h3>
+
+        <p className="mt-2 text-sm leading-6 text-slate-600">{explanation.detail}</p>
+      </div>
+
+      {/* Centipawn loss */}
+      <div className="mt-5 rounded-lg border border-slate-200 p-4">
+        <h3 className="font-semibold text-slate-900">Centipawn Loss</h3>
+
+        <p className="mt-1 text-xl font-bold text-slate-900">{centipawnLoss}</p>
+
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Centipawn loss estimates how much worse the played move is compared with the engine's best move. The displayed
+          value depends on the calculation performed by your analysis hook.
         </p>
-      )}
+      </div>
 
-      <p className="mt-4 text-xs leading-5 text-slate-500">
-        Centipawn loss measures an evaluation change; it does not, by itself, explain the exact tactical reason. The
-        thresholds used here are explanatory ranges, not official chess standards.
-      </p>
+      {/* Training takeaway */}
+      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <h3 className="font-semibold text-amber-900">Training takeaway</h3>
+
+        <p className="mt-2 text-sm leading-6 text-amber-900">{explanation.lesson}</p>
+      </div>
+
+      {/* Evaluation comparison */}
+      <div className="mt-5">
+        <h3 className="font-semibold text-slate-900">Evaluation Comparison</h3>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-sm text-slate-500">Before move</p>
+
+            <p className="mt-1 font-semibold text-slate-900">
+              {hasBefore ? formatEvaluation(result.evaluationBefore) : "Unavailable"}
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-slate-50 p-3">
+            <p className="text-sm text-slate-500">After move</p>
+
+            <p className="mt-1 font-semibold text-slate-900">
+              {hasAfter ? formatEvaluation(result.evaluationAfter) : "Unavailable"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-slate-200 p-3">
+          <p className="text-sm text-slate-500">Evaluation change (after − before)</p>
+
+          <p className="mt-1 font-semibold text-slate-900">
+            {canCalculateChange
+              ? formatEvaluation(evaluationChange)
+              : "Unavailable — confirm a consistent evaluation perspective"}
+          </p>
+
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            A positive change means the evaluation increased from the selected perspective; a negative change means it
+            decreased. This is meaningful only when both scores use the same perspective and score convention.
+          </p>
+        </div>
+      </div>
+
+      {/* Principal variation */}
+      {pv && (
+        <div className="mt-5">
+          <h3 className="font-semibold text-slate-900">Engine Continuation</h3>
+
+          <p className="mt-2 break-words rounded-lg bg-slate-50 p-3 font-mono text-sm leading-6 text-slate-700">{pv}</p>
+
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            This is the engine's principal variation. It represents a suggested continuation, not necessarily a forced
+            sequence.
+          </p>
+        </div>
+      )}
     </section>
   );
 };
