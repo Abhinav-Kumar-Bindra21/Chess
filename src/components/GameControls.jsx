@@ -1,13 +1,15 @@
-const GameControls = ({ onStart, onUndo, onRedo }) => {
+const GameControls = ({ goToStart, undoMove, redoMove }) => {
   return (
-    <div className="flex items-center justify-center mt-2 gap-3">
-      <button onClick={onStart} className="px-4 bg-blue-500 text-white rounded">
+    <div className="mt-2 flex items-center justify-center gap-3">
+      <button type="button" onClick={goToStart} className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
         Start
       </button>
-      <button onClick={onUndo} className="px-4 bg-blue-500 text-white rounded">
+
+      <button type="button" onClick={undoMove} className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
         ↶ Undo
       </button>
-      <button onClick={onRedo} className="px-4 bg-blue-500 text-white rounded">
+
+      <button type="button" onClick={redoMove} className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">
         ↷ Redo
       </button>
     </div>
