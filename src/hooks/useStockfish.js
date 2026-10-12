@@ -173,7 +173,7 @@ const useStockfish = () => {
       if (message.startsWith("bestmove")) {
         const uciMove = message.split(" ")[1];
 
-        if (!uciMove || uciMove === "(none") {
+        if (!uciMove || uciMove === "(none)") {
           return;
         }
 
